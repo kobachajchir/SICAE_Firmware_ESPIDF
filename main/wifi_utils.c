@@ -1,11 +1,13 @@
 #include <globals.h>
+#include "esp_log.h"
 #include "wifi_utils.h"
+#include "lcd_utils.h" // Include the header for LCD functions
 
-static const char *TAG = "wifi station";
+static const char *TAG = "wifi_utils";
 EventGroupHandle_t s_wifi_event_group;
 static int s_retry_num = 0;
 
-static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -20,6 +22,9 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        snprintf(linea, sizeof(linea), IPSTR, IP2STR(&event->ip_info.ip));
+        lcd_put_cur(1, 0); // Move cursor to the beginning of the second line
+        lcd_send_string(linea); // Display the IP address
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
@@ -30,7 +35,6 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
         ESP_LOGI(TAG, "station " MACSTR " left, AID=%d, reason:%d", MAC2STR(event->mac), event->aid, event->reason);
     }
 }
-
 void wifi_init_softap(void) {
     esp_netif_create_default_wifi_ap();
 
@@ -55,6 +59,13 @@ void wifi_init_softap(void) {
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s",
              CONFIG_SOFTAP_SSID, CONFIG_SOFTAP_PASSWORD);
+     esp_netif_ip_info_t ip_info;
+    esp_netif_get_ip_info(esp_netif_create_default_wifi_ap(), &ip_info);
+    snprintf(linea, sizeof(linea), IPSTR, IP2STR(&ip_info.ip));
+    lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+    lcd_send_string("AP CREADO");
+    lcd_put_cur(1, 0); // Move cursor to the beginning of the second line
+    lcd_send_string(linea); // Display the AP IP address
 }
 
 void wifi_init_sta(void) {
@@ -103,11 +114,15 @@ void wifi_init_sta(void) {
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
                  CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD);
+        lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+        lcd_send_string("WIFI CONECTADO");
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
                  CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD);
         // Start SoftAP
         ESP_LOGI(TAG, "Starting SoftAP");
+        lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+        lcd_send_string("CREANDO AP");
         wifi_init_softap();
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");

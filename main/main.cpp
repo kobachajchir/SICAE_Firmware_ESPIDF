@@ -1,3 +1,4 @@
+#include <iostream>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -25,12 +26,24 @@
 #include "webserver.h" 
 #include "globals.h"
 #include "buttons.h"
+#include "value.h"
+#include "json.h"
+#include "app.h"
+#include "rtdb.h"
+#include "firebase_config.h"
+
+using namespace ESPFirebase;
 
 // Manually define the missing type
 typedef esp_err_t (*esp_tls_handshake_callback_t)(esp_tls_t *tls, void *arg);
 
-static void firebase_get_dispositivos(void);
-static void get_current_time(char *buffer, size_t max_len);
+extern "C" {
+    void app_main();
+    static void firebase_get_dispositivos();
+    static esp_err_t i2c_master_init();
+    void get_current_time(char *buffer, size_t max_len);
+    void button_task(void *arg);
+}
 
 static const char *TAG = "main";
 static int s_retry_num = 0;
@@ -45,17 +58,17 @@ uint32_t btnDownDuration = 0;
 
 char linea[16];
 
-void init_gpio() {
+extern "C" void init_gpio() {
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pin_bit_mask = (1ULL << PIN_BTN_UP) | (1ULL << PIN_BTN_DOWN) | (1ULL << PIN_BTN_ENTER);
-    io_conf.pull_down_en = 0; // Disable internal pull-down resistors
-    io_conf.pull_up_en = 0;   // Disable internal pull-up resistors
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE; // Disable internal pull-down resistors
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;   // Disable internal pull-up resistors
     gpio_config(&io_conf);
 }
 
-static void get_current_time(char *buffer, size_t max_len)
+extern "C" void get_current_time(char *buffer, size_t max_len)
 {
     time_t now;
     struct tm timeinfo;
@@ -64,37 +77,14 @@ static void get_current_time(char *buffer, size_t max_len)
     strftime(buffer, max_len, "%Y-%m-%dT%H:%M:%S.000Z", &timeinfo);
 }
 
-static void firebase_get_dispositivos(void)
-{
-    // Obtener la hora actual
-    char time_str[64];
-    get_current_time(time_str, sizeof(time_str));
+static void firebase_get_dispositivos() {
+    esp_http_client_config_t config;
+    config.url = "https://sicaewebapp-default-rtdb.firebaseio.com/dispositivos.json";
+    config.cert_pem = (const char *)_binary_clientcert_pem_start;
+    config.event_handler = client_event_get_handler;
+    config.method = HTTP_METHOD_GET;
+    esp_http_client_handle_t client = esp_http_client_init(&config);
 
-    // Construir la cadena JSON
-    char json_data[256];
-    snprintf(json_data, sizeof(json_data), 
-             "{\"auth\": null, \"resource\": {\"key\": \"value\"}, \"path\": \"/dispositivos\", \"method\": \"get\", \"time\": \"%s\"}", 
-             time_str);
-
-    // Crear la URL completa
-    char url[512];
-    snprintf(url, sizeof(url), "https://sicaewebapp-default-rtdb.firebaseio.com/dispositivos.json");
-
-    // Configurar la solicitud HTTP
-    esp_http_client_config_t config_get = {
-        .url = url,
-        .method = HTTP_METHOD_GET,
-        .cert_pem = (const char *)_binary_clientcert_pem_start,
-        .event_handler = client_event_get_handler
-    };
-
-    esp_http_client_handle_t client = esp_http_client_init(&config_get);
-
-    // Añadir la cadena JSON a la solicitud
-    esp_http_client_set_post_field(client, json_data, strlen(json_data));
-    esp_http_client_set_header(client, "Content-Type", "application/json");
-
-    // Ejecutar la solicitud HTTP
     esp_err_t err = esp_http_client_perform(client);
     if (err == ESP_OK) {
         ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %d",
@@ -115,22 +105,23 @@ void button_task(void *arg) {
 }
 
 
-static esp_err_t i2c_master_init(void) {
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = I2C_MASTER_SDA_IO,
-        .scl_io_num = I2C_MASTER_SCL_IO,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = I2C_MASTER_FREQ_HZ,
-    };
-    i2c_param_config(I2C_MASTER_NUM, &conf);
-    return i2c_driver_install(I2C_MASTER_NUM, conf.mode,
-                              I2C_MASTER_RX_BUF_DISABLE,
-                              I2C_MASTER_TX_BUF_DISABLE, 0);
+static esp_err_t i2c_master_init() {
+    i2c_config_t conf;
+    conf.mode = I2C_MODE_MASTER;
+    conf.sda_io_num = I2C_MASTER_SDA_IO;
+    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    conf.scl_io_num = I2C_MASTER_SCL_IO;
+    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
+    conf.clk_flags = 0;
+    esp_err_t err = i2c_param_config(I2C_MASTER_NUM, &conf);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return i2c_driver_install(I2C_MASTER_NUM, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
 
-void app_main(void){
+extern "C" void app_main(void){
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -143,8 +134,8 @@ void app_main(void){
     init_gpio();
     ESP_LOGI(TAG, "GPIO Initialized with external pull-down resistors");
 
+    ret = i2c_master_init();
     ESP_ERROR_CHECK(ret);
-    ESP_ERROR_CHECK(i2c_master_init());
     ESP_LOGI(TAG, "I2C initialized successfully");
 
     lcd_init();
@@ -166,8 +157,13 @@ void app_main(void){
         
         ESP_LOGI(TAG, "Starting client...");
         client_post_rest_function();
-        ESP_LOGI(TAG, "Fetching dispositivos data from Firebase...");
-        firebase_get_dispositivos();
+        if(INITIALIZING){
+            // Config and Authentication
+            user_account_t account = {USER_EMAIL, USER_PASSWORD};
+            FirebaseApp app = FirebaseApp(API_KEY);
+            app.loginUserAccount(account);
+            RTDB db = RTDB(&app, DATABASE_URL);
+        }
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
                  CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD);

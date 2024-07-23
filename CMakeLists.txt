@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(SICAE_Firmware_ESPIDF)
+list(APPEND EXTRA_COMPONENT_DIRS "components/components/esp_firebase" "components/components/jsoncpp")
+project(SICAE_Firmware_ESPIDF C CXX)

@@ -5,6 +5,8 @@
 #include <esp_https_server.h>
 #include "esp_log.h"
 #include "globals.h"
+#include "json/cJSON/cJSON.h"
+#include "json/cJSON/cJSON_Utils.h"
 
 static const char *TAG = "webserver";
 
@@ -59,7 +61,61 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
     switch (evt->event_id)
     {
     case HTTP_EVENT_ON_DATA:
-        printf("Client HTTP_EVENT_ON_DATA: %.*s\n", evt->data_len, (char *)evt->data);
+        if (!esp_http_client_is_chunked_response(evt->client)) {
+            if (response_data == NULL) {
+                response_data = malloc(evt->data_len + 1);
+                response_data_len = evt->data_len;
+            } else {
+                response_data = realloc(response_data, response_data_len + evt->data_len + 1);
+                response_data_len += evt->data_len;
+            }
+            memcpy(response_data + response_data_len - evt->data_len, evt->data, evt->data_len);
+            response_data[response_data_len] = '\0';
+        }
+        break;
+    case HTTP_EVENT_ON_FINISH:
+        if (response_data) {
+            ESP_LOGI(TAG, "HTTP GET Response: %s", response_data);
+
+            // Parse JSON response using cJSON
+            cJSON *json = cJSON_Parse(response_data);
+            if (json) {
+                cJSON *status = cJSON_GetObjectItem(json, "status");
+                if (cJSON_IsBool(status) && cJSON_IsTrue(status)) {
+                    cJSON *section = cJSON_GetObjectItem(json, "section");
+                    if (cJSON_IsString(section)) {
+                        const char *section_value = section->valuestring;
+                        
+                        // Store section_value in urlSection
+                        strncpy(urlSection, section_value, sizeof(urlSection) - 1);
+                        urlSection[sizeof(urlSection) - 1] = '\0'; // Ensure null termination
+
+                        // Check section
+                        if (strcmp(section_value, "/info") == 0) {
+                            FETCHNEWINFODATA = 1;
+                        } else if (strncmp(section_value, "/devices/", 9) == 0) {
+                            FETCHNEWDEVICESDATA = 1;
+                        }
+                        ESP_LOGI(TAG, "Parsed section_value: %s", section_value);
+                    } else {
+                        ESP_LOGE(TAG, "section is not a string or missing");
+                    }
+                } else {
+                    ESP_LOGE(TAG, "status is not a boolean or false");
+                }
+                cJSON_Delete(json);
+            } else {
+                const char *error_ptr = cJSON_GetErrorPtr();
+                if (error_ptr != NULL) {
+                    ESP_LOGE(TAG, "Failed to parse JSON response at %s", error_ptr);
+                } else {
+                    ESP_LOGE(TAG, "Failed to parse JSON response");
+                }
+            }
+            free(response_data);
+            response_data = NULL;
+            response_data_len = 0;
+        }
         break;
     default:
         break;

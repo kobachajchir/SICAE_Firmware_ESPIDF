@@ -14,6 +14,11 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "myByte.h"
+#include "esp_system.h"
+#include "esp_chip_info.h"
+#include "esp_efuse.h"
+#include "esp_efuse_table.h"
+#include "esp_http_client.h"
 
 /* Pin declarations */
 #define PIN_BTN_ENTER 39
@@ -51,7 +56,8 @@ extern const uint8_t _binary_clientcert_pem_end[] asm("_binary_clientcert_pem_en
 #define BTN_DOWN_RELEASED_LONGPRESS btnFlag.bits.bit7 //Button Down released long press
 #define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit0 //Button Enter released long press
 #define INITIALIZING btnFlag2.bits.bit1 //Unused
-//*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit2 //Unused
+#define FETCHNEWINFODATA btnFlag2.bits.bit2 //Unused
+#define FETCHNEWDEVICESDATA btnFlag2.bits.bit3 //Unused
 //*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit3 //Unused
 //*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit4 //Unused
 //*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit5 //Unused
@@ -87,5 +93,13 @@ extern EventGroupHandle_t s_wifi_event_group;
 #define WIFI_FAIL_BIT      BIT1
 
 extern char linea[16];
+
+extern char device_id[18];
+extern uint8_t mac[6];
+extern char url[256];
+extern char urlSection[50];
+
+extern char *response_data;
+extern int response_data_len;
 
 #endif // GLOBALS_H

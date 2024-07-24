@@ -31,6 +31,7 @@
 #include "app.h"
 #include "rtdb.h"
 #include "firebase_config.h"
+#include "firebaseFns.h"
 
 using namespace ESPFirebase;
 
@@ -57,6 +58,12 @@ uint32_t btnUpDuration = 0;
 uint32_t btnDownDuration = 0;
 
 char linea[16];
+char device_id[18];
+uint8_t mac[6];
+char url[256];
+char urlSection[50];
+char *response_data = NULL;
+int response_data_len = 0;
 
 extern "C" void init_gpio() {
     gpio_config_t io_conf;
@@ -75,26 +82,6 @@ extern "C" void get_current_time(char *buffer, size_t max_len)
     time(&now);
     localtime_r(&now, &timeinfo);
     strftime(buffer, max_len, "%Y-%m-%dT%H:%M:%S.000Z", &timeinfo);
-}
-
-static void firebase_get_dispositivos() {
-    esp_http_client_config_t config;
-    config.url = "https://sicaewebapp-default-rtdb.firebaseio.com/dispositivos.json";
-    config.cert_pem = (const char *)_binary_clientcert_pem_start;
-    config.event_handler = client_event_get_handler;
-    config.method = HTTP_METHOD_GET;
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-
-    esp_err_t err = esp_http_client_perform(client);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %d",
-                 esp_http_client_get_status_code(client),
-                 (int)esp_http_client_get_content_length(client));
-    } else {
-        ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
-    }
-
-    esp_http_client_cleanup(client);
 }
 
 void button_task(void *arg) {
@@ -129,6 +116,9 @@ extern "C" void app_main(void){
     }
     ESP_ERROR_CHECK(ret);
     INITIALIZING = 1;
+    esp_efuse_mac_get_default(mac);
+    snprintf(device_id, sizeof(device_id), "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    ESP_LOGI(TAG, "Device ID %s", device_id);
     ESP_LOGI(TAG, "Inicializando");
     ESP_LOGI(TAG, "Initializing GPIO...");
     init_gpio();
@@ -156,7 +146,7 @@ extern "C" void app_main(void){
         start_webserver();
         
         ESP_LOGI(TAG, "Starting client...");
-        client_post_rest_function();
+        firebase_get_new_data();
         if(INITIALIZING){
             // Config and Authentication
             user_account_t account = {USER_EMAIL, USER_PASSWORD};
@@ -179,5 +169,13 @@ extern "C" void app_main(void){
         INITIALIZING = 0;
         xTaskCreate(button_task, "button_task", 2048, NULL, 10, NULL);
         ESP_LOGI(TAG, "Buttons tasks created");
+    }
+    if(FETCHNEWINFODATA){
+        FETCHNEWINFODATA = 0;
+        firebase_get_dispositivo_info();
+    }
+    if(FETCHNEWDEVICESDATA){
+        FETCHNEWDEVICESDATA = 0;
+        firebase_get_dispositivo_device();
     }
 }

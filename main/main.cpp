@@ -44,6 +44,8 @@ extern "C" {
     static esp_err_t i2c_master_init();
     void get_current_time(char *buffer, size_t max_len);
     void button_task(void *arg);
+    void data_processing_task(void *pvParameters);
+    void check_new_data_task(void *pvParameter);
 }
 
 static const char *TAG = "main";
@@ -91,6 +93,20 @@ void button_task(void *arg) {
     }
 }
 
+void check_new_data_task(void *pvParameter) {
+    while (1) {
+        // Check if WiFi is connected
+        EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+        if (bits & WIFI_CONNECTED_BIT && !(FETCHNEWINFODATA || FETCHNEWDEVICESDATA)) {
+            firebase_get_new_data();
+        } else {
+            // If WiFi is not connected, exit the task
+            ESP_LOGE(TAG, "WiFi disconnected, exiting check_new_data_task");
+            vTaskDelete(NULL);
+        }
+        vTaskDelay(pdMS_TO_TICKS(3000));
+    }
+}
 
 static esp_err_t i2c_master_init() {
     i2c_config_t conf;
@@ -107,6 +123,38 @@ static esp_err_t i2c_master_init() {
     }
     return i2c_driver_install(I2C_MASTER_NUM, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
+
+void data_processing_task(void *pvParameters) {
+    while (1) {
+        if (FETCHNEWINFODATA) {
+            FETCHNEWINFODATA = 0;
+            lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("ACTUALIZANDO");
+            lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("OBTENIENDO INFO");
+            firebase_get_dispositivo_info();
+        }
+        
+        if (FETCHNEWDEVICESDATA) {
+            FETCHNEWDEVICESDATA = 0;
+            lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("ACTUALIZANDO");
+            lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("OBTENIENDO DISP");
+            firebase_get_dispositivo_device();
+        }
+        
+        if (POSTNONEWDATA) {
+            POSTNONEWDATA = 0;
+            ESP_LOGI(TAG, "HERE3"); //No new data enters here
+            clear_new_data_section();
+        }
+        
+        // Sleep for a short time to yield control to other tasks
+        vTaskDelay(pdMS_TO_TICKS(100)); // Adjust the delay as needed
+    }
+}
+
 
 extern "C" void app_main(void){
     esp_err_t ret = nvs_flash_init();
@@ -146,13 +194,13 @@ extern "C" void app_main(void){
         start_webserver();
         
         ESP_LOGI(TAG, "Starting client...");
-        firebase_get_new_data();
         if(INITIALIZING){
             // Config and Authentication
             user_account_t account = {USER_EMAIL, USER_PASSWORD};
             FirebaseApp app = FirebaseApp(API_KEY);
             app.loginUserAccount(account);
             RTDB db = RTDB(&app, DATABASE_URL);
+           xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, NULL); // Aumentamos el tamaño de la pila aquí
         }
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
@@ -169,13 +217,7 @@ extern "C" void app_main(void){
         INITIALIZING = 0;
         xTaskCreate(button_task, "button_task", 2048, NULL, 10, NULL);
         ESP_LOGI(TAG, "Buttons tasks created");
-    }
-    if(FETCHNEWINFODATA){
-        FETCHNEWINFODATA = 0;
-        firebase_get_dispositivo_info();
-    }
-    if(FETCHNEWDEVICESDATA){
-        FETCHNEWDEVICESDATA = 0;
-        firebase_get_dispositivo_device();
+        xTaskCreate(data_processing_task, "data_processing_task", 4096, NULL, 5, NULL);
+        ESP_LOGI(TAG, "Data processing tasks created");
     }
 }

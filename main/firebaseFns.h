@@ -9,7 +9,7 @@ extern "C" {
     void firebase_get_dispositivo_device();
     void firebase_get_new_data(void);
     void perform_http_get(const char *url);
-
+    void clear_new_data_section(void);
 #ifdef __cplusplus
 }
 #endif

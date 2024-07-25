@@ -7,6 +7,7 @@
 #include "globals.h"
 #include "json/cJSON/cJSON.h"
 #include "json/cJSON/cJSON_Utils.h"
+#include "lcd_utils.h" 
 
 static const char *TAG = "webserver";
 
@@ -71,21 +72,39 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
             }
             memcpy(response_data + response_data_len - evt->data_len, evt->data, evt->data_len);
             response_data[response_data_len] = '\0';
+            ESP_LOGI(TAG, "HTTP GET Response (on data): %s", response_data);
+        }
+        esp_err_t url_err = esp_http_client_get_url(evt->client, url, sizeof(url));
+        if (url_err == ESP_OK) {
+            ESP_LOGI(TAG, "Request URL: %s", url);
+            if (strstr(url, "/info") != NULL) {
+                FETCHEDINFODATA = 1;
+                ESP_LOGI(TAG, "from /info"); // Log for new data info
+            } else if (strstr(url, "/devices/") != NULL) {
+                FETCHEDDEVICESDATA = 1;
+                ESP_LOGI(TAG, "from /devices"); // Log for new data devices
+            }
+        } else {
+            ESP_LOGE(TAG, "Failed to get request URL: %s", esp_err_to_name(url_err));
         }
         break;
     case HTTP_EVENT_ON_FINISH:
         if (response_data) {
             ESP_LOGI(TAG, "HTTP GET Response: %s", response_data);
-
             // Parse JSON response using cJSON
             cJSON *json = cJSON_Parse(response_data);
             if (json) {
                 cJSON *status = cJSON_GetObjectItem(json, "status");
                 if (cJSON_IsBool(status) && cJSON_IsTrue(status)) {
+                    lcd_put_cur(0, 0); 
+                    lcd_send_string("DATOS NUEVOS");
+                    lcd_put_cur(1, 0); 
+                    lcd_send_string("DETECTADOS");
                     cJSON *section = cJSON_GetObjectItem(json, "section");
                     if (cJSON_IsString(section)) {
                         const char *section_value = section->valuestring;
-                        
+                        ESP_LOGI(TAG, "HERE"); //No new data enters here
+
                         // Store section_value in urlSection
                         strncpy(urlSection, section_value, sizeof(urlSection) - 1);
                         urlSection[sizeof(urlSection) - 1] = '\0'; // Ensure null termination
@@ -93,8 +112,10 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
                         // Check section
                         if (strcmp(section_value, "/info") == 0) {
                             FETCHNEWINFODATA = 1;
+                            ESP_LOGI(TAG, "New data info"); //No new data enters here
                         } else if (strncmp(section_value, "/devices/", 9) == 0) {
                             FETCHNEWDEVICESDATA = 1;
+                            ESP_LOGI(TAG, "New data devices"); //No new data enters here
                         }
                         ESP_LOGI(TAG, "Parsed section_value: %s", section_value);
                     } else {
@@ -111,6 +132,9 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
                 } else {
                     ESP_LOGE(TAG, "Failed to parse JSON response");
                 }
+            }
+            if(FETCHEDINFODATA || FETCHEDDEVICESDATA){
+                POSTNONEWDATA = 1;
             }
             free(response_data);
             response_data = NULL;

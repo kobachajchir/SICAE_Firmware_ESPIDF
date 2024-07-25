@@ -58,10 +58,10 @@ extern const uint8_t _binary_clientcert_pem_end[] asm("_binary_clientcert_pem_en
 #define INITIALIZING btnFlag2.bits.bit1 //Unused
 #define FETCHNEWINFODATA btnFlag2.bits.bit2 //Unused
 #define FETCHNEWDEVICESDATA btnFlag2.bits.bit3 //Unused
-//*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit3 //Unused
-//*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit4 //Unused
-//*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit5 //Unused
-//*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit6 //Unused
+#define POSTNONEWDATA btnFlag2.bits.bit4 //Unused
+#define PAUSENEWDATAFETCH btnFlag2.bits.bit5 //Unused
+#define FETCHEDINFODATA btnFlag2.bits.bit6 //Unused
+#define FETCHEDDEVICESDATA btnFlag2.bits.bit7 //Unused
 //*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit7 //Unused
 
 /* i2c Configuration */

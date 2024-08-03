@@ -12,6 +12,7 @@ extern "C" {
     esp_err_t lcd_send_data(char data);
     void lcd_send_string(char *str);
     void lcd_clear(void);
+    void lcd_clear_line(int row);
     void lcd_put_cur(int row, int col);
 #ifdef __cplusplus
 }

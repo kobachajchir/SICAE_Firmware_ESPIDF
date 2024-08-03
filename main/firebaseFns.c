@@ -23,7 +23,7 @@ void firebase_get_new_data(void)
     esp_http_client_config_t config_get = {
         .url = url,
         .method = HTTP_METHOD_GET,
-        .cert_pem = (const char *)_binary_clientcert_pem_start,
+        .cert_pem = (const char *)clientcert_pem_start,
         .event_handler = client_event_get_handler
     };
 
@@ -68,7 +68,7 @@ void clear_new_data_section(void){
     esp_http_client_config_t config_post = {
         .url = url,
         .method = HTTP_METHOD_PUT,  // Use PUT method to update the data
-        .cert_pem = (const char *)_binary_clientcert_pem_start,
+        .cert_pem = (const char *)clientcert_pem_start,
         .event_handler = client_event_get_handler
     };
 
@@ -107,7 +107,7 @@ void perform_http_get(const char* url) {
     esp_http_client_config_t config = {
         .url = url,
         .method = HTTP_METHOD_GET,
-        .cert_pem = (const char *)_binary_clientcert_pem_start,
+        .cert_pem = (const char *)clientcert_pem_start,
         .event_handler = client_event_get_handler
     };
 

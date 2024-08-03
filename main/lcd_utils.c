@@ -75,6 +75,19 @@ void lcd_clear(void){
     }
 }
 
+void lcd_clear_line(int row){
+    if(row == 1){
+        lcd_send_cmd(0x80); // Move to the beginning of the first line
+    } else if(row == 2){
+        lcd_send_cmd(0xC0); // Move to the beginning of the second line
+    }
+
+    for (int i = 0; i < 16; i++){ // Assuming the LCD has 16 columns
+        lcd_send_data(' ');
+    }
+}
+
+
 void lcd_put_cur(int row, int col)
 {
     switch (row)

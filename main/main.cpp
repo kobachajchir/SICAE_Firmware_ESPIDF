@@ -32,6 +32,7 @@
 #include "rtdb.h"
 #include "firebase_config.h"
 #include "firebaseFns.h"
+#include "spiffs.h"
 
 using namespace ESPFirebase;
 
@@ -66,6 +67,7 @@ char url[256];
 char urlSection[50];
 char *response_data = NULL;
 int response_data_len = 0;
+bool use_ssl = false;
 
 extern "C" void init_gpio() {
     gpio_config_t io_conf;
@@ -180,6 +182,13 @@ extern "C" void app_main(void){
     ESP_LOGI(TAG, "LCD initialized successfully");
     lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
     lcd_send_string("INICIANDO");
+    lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+    lcd_send_string("FILESYSTEM");
+    // Initialize SPIFFS
+    init_spiffs();
+    lcd_clear_line(1);
+    lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+    lcd_send_string("WIFI");
     wifi_init_sta();
 
     // Wait for WiFi to connect

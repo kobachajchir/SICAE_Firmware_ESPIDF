@@ -28,7 +28,7 @@
 /* Timer defines */
 #define MINMSTIME 10 //Time in ms for entering the loop
 #define BTN_PRESS_TIME 30 //Time short press 30ms
-#define BTN_LONGPRESS_TIME 1500 //Time long press 1.5s
+#define BTN_LONGPRESS_TIME 1500 //Time long press 1.5s.
 
 /* Buttons flags*/
 extern myByte btnFlag;
@@ -38,12 +38,12 @@ extern uint32_t btnEnterDuration;
 extern uint32_t btnUpDuration;
 extern uint32_t btnDownDuration;
 
-extern const uint8_t _binary_servercert_pem_start[] asm("_binary_servercert_pem_start");
-extern const uint8_t _binary_servercert_pem_end[] asm("_binary_servercert_pem_end");
-extern const uint8_t _binary_serverkey_pem_start[] asm("_binary_serverkey_pem_start");
-extern const uint8_t _binary_serverkey_pem_end[] asm("_binary_serverkey_pem_end");
-extern const uint8_t _binary_clientcert_pem_start[] asm("_binary_clientcert_pem_start");
-extern const uint8_t _binary_clientcert_pem_end[] asm("_binary_clientcert_pem_end");
+extern const uint8_t servercert_pem_start[] asm("_binary_servercert_pem_start");
+extern const uint8_t servercert_pem_end[] asm("_binary_servercert_pem_end");
+extern const uint8_t serverkey_pem_start[] asm("_binary_serverkey_pem_start");
+extern const uint8_t serverkey_pem_end[] asm("_binary_serverkey_pem_end");
+extern const uint8_t clientcert_pem_start[] asm("_binary_clientcert_pem_start");
+extern const uint8_t clientcert_pem_end[] asm("_binary_clientcert_pem_end");
 
 /* Buttons flags defines*/
 #define BTN_UP_PRESSED btnFlag.bits.bit0 //Button Up pressed
@@ -101,5 +101,7 @@ extern char urlSection[50];
 
 extern char *response_data;
 extern int response_data_len;
+
+extern bool use_ssl; // Flag to control SSL usage
 
 #endif // GLOBALS_H

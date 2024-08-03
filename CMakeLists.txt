@@ -10,5 +10,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # List your component directories
 list(APPEND EXTRA_COMPONENT_DIRS "components/components/esp_firebase" "components/components/jsoncpp")
 
+# Generate SPIFFS image
+spiffs_create_partition_image(spiffs data FLASH_IN_PROJECT)
+
 set(CMAKE_C_COMPILER "xtensa-esp32-elf-gcc")
 set(CMAKE_CXX_COMPILER "xtensa-esp32-elf-g++")
+

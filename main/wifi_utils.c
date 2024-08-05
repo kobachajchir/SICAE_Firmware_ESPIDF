@@ -94,11 +94,21 @@ void wifi_init_sta(void) {
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = CONFIG_ESP_WIFI_SSID,
-            .password = CONFIG_ESP_WIFI_PASSWORD,
+            .ssid = "",
+            .password = "",
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
-        },
+            .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
+            .pmf_cfg = {
+                .capable = true,
+                .required = false
+            }
+        }
     };
+
+    // Copia las credenciales Wi-Fi en las estructuras correspondientes
+    strncpy((char *)wifi_config.sta.ssid, wifiSsid, sizeof(wifi_config.sta.ssid));
+    strncpy((char *)wifi_config.sta.password, wifiPassword, sizeof(wifi_config.sta.password));
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
@@ -112,13 +122,9 @@ void wifi_init_sta(void) {
             portMAX_DELAY);
 
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-                 CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD);
         lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
         lcd_send_string("WIFI CONECTADO");
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD);
         // Start SoftAP
         ESP_LOGI(TAG, "Starting SoftAP");
         lcd_put_cur(0, 0); // Move cursor to the beginning of the first line

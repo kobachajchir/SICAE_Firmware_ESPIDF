@@ -17,7 +17,7 @@ static const char *TAG = "firebaseFns";
 void firebase_get_new_data(void)
 {
     // Construct the URL based on the device ID
-    snprintf(url, sizeof(url), "https://sicaewebapp-default-rtdb.firebaseio.com/events/%s/newData.json", device_id);
+    snprintf(url, sizeof(url), "%snewData.json", events_url);
 
     // Configure the HTTP client
     esp_http_client_config_t config_get = {
@@ -46,7 +46,7 @@ void firebase_get_new_data(void)
 void clear_new_data_section(void){
     ESP_LOGI(TAG, "clear new data"); //No new data enters here
     // Construct the URL based on the device ID
-    snprintf(url, sizeof(url), "https://sicaewebapp-default-rtdb.firebaseio.com/events/%s/newData.json", device_id);
+    snprintf(url, sizeof(url), "%snewData.json", events_url);
 
     // Create JSON payload to clear the newData section and set status to false
     cJSON *json = cJSON_CreateObject();
@@ -126,16 +126,16 @@ void perform_http_get(const char* url) {
 }
 
 void firebase_get_dispositivo_info() {
-    snprintf(url, sizeof(url), "https://sicaewebapp-default-rtdb.firebaseio.com/dispositivos/%s/data/info.json", device_id);
+    snprintf(url, sizeof(url), "%sinfo.json", disp_url);
     perform_http_get(url);
 }
 
 void firebase_get_dispositivo_device() {
-    snprintf(url, sizeof(url), "https://sicaewebapp-default-rtdb.firebaseio.com/dispositivos/%s/data/%s.json", device_id, urlSection);
+    snprintf(url, sizeof(url), "%s%s.json", disp_url, urlSection);
     perform_http_get(url);
 }
 
 void firebase_get_dispositivo_devices() {
-    snprintf(url, sizeof(url), "https://sicaewebapp-default-rtdb.firebaseio.com/dispositivos/%s/data/devices.json", device_id);
+    snprintf(url, sizeof(url), "%sdevices.json", disp_url);
     perform_http_get(url);
 }

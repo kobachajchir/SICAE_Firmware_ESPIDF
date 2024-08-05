@@ -33,6 +33,16 @@
 #include "firebase_config.h"
 #include "firebaseFns.h"
 #include "spiffs.h"
+#include "nvs_utils.h"
+
+TaskHandle_t buttonTaskHandler;
+TaskHandle_t dataFetchHandler;
+TaskHandle_t dataProcessHandler;
+char wifiSsid[WIFI_SSID_MAX_LEN] = {0};
+char wifiPassword[WIFI_PASS_MAX_LEN] = {0};
+char url[URL_MAX_LEN] = {0};
+char disp_url[SERVER_URL_MAX_LEN] = {0};
+char events_url[SERVER_URL_MAX_LEN] = {0};
 
 using namespace ESPFirebase;
 
@@ -63,7 +73,6 @@ uint32_t btnDownDuration = 0;
 char linea[16];
 char device_id[18];
 uint8_t mac[6];
-char url[256];
 char urlSection[50];
 char *response_data = NULL;
 int response_data_len = 0;
@@ -104,7 +113,7 @@ void check_new_data_task(void *pvParameter) {
         } else {
             // If WiFi is not connected, exit the task
             ESP_LOGE(TAG, "WiFi disconnected, exiting check_new_data_task");
-            vTaskDelete(NULL);
+            vTaskDelete(dataProcessHandler);
         }
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
@@ -159,74 +168,88 @@ void data_processing_task(void *pvParameters) {
 
 
 extern "C" void app_main(void){
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-    INITIALIZING = 1;
-    esp_efuse_mac_get_default(mac);
-    snprintf(device_id, sizeof(device_id), "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    ESP_LOGI(TAG, "Device ID %s", device_id);
-    ESP_LOGI(TAG, "Inicializando");
-    ESP_LOGI(TAG, "Initializing GPIO...");
-    init_gpio();
-    ESP_LOGI(TAG, "GPIO Initialized with external pull-down resistors");
+	esp_err_t ret;
+	nvs_init(); // init nvs
+	INITIALIZING = 1;
+	esp_efuse_mac_get_default(mac);
+	snprintf(device_id, sizeof(device_id), "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+	ESP_LOGI(TAG, "Device ID %s", device_id);
+	ESP_LOGI(TAG, "Inicializando");
+	initialize_nvs_with_default_data(device_id);
+	ESP_LOGI(TAG, "Initializing GPIO...");
+	init_gpio();
+	ESP_LOGI(TAG, "GPIO Initialized with external pull-down resistors");
 
-    ret = i2c_master_init();
-    ESP_ERROR_CHECK(ret);
-    ESP_LOGI(TAG, "I2C initialized successfully");
+	ret = i2c_master_init();
+	ESP_ERROR_CHECK(ret);
 
-    lcd_init();
-    ESP_LOGI(TAG, "LCD initialized successfully");
-    lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
-    lcd_send_string("INICIANDO");
-    lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
-    lcd_send_string("FILESYSTEM");
-    // Initialize SPIFFS
-    init_spiffs();
-    lcd_clear_line(1);
-    lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
-    lcd_send_string("WIFI");
-    wifi_init_sta();
+	lcd_init();
+	ESP_LOGI(TAG, "LCD initialized successfully");
+	lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+	lcd_send_string("INICIANDO");
+	lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+	lcd_send_string("FILESYSTEM");
+	// Initialize SPIFFS
+	init_spiffs();
+	lcd_clear_line(1);
+	lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+	lcd_send_string("WIFI");
+	lcd_clear();
+	lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+	lcd_send_string("OBTENIENDO");
+	lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+	lcd_send_string("CRED. WIFI");
+	read_wifi_credentials(wifiSsid, sizeof(wifiSsid), wifiPassword, sizeof(wifiPassword));
+	lcd_clear();
+	lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+	lcd_send_string("INICIANDO");
+	lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+	lcd_send_string("WIFI");
+	wifi_init_sta();
 
-    // Wait for WiFi to connect
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                           pdFALSE,
-                                           pdFALSE,
-                                           portMAX_DELAY);
+	// Wait for WiFi to connect
+	EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+																				 WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+																				 pdFALSE,
+																				 pdFALSE,
+																				 portMAX_DELAY);
+     
+	if (bits & WIFI_CONNECTED_BIT)
+	{
+		ESP_LOGI(TAG, "WIFI connected, starting server...");
+		start_webserver();
 
-    if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "WIFI connected, starting server...");
-        start_webserver();
-        
-        ESP_LOGI(TAG, "Starting client...");
-        if(INITIALIZING){
-            // Config and Authentication
-            user_account_t account = {USER_EMAIL, USER_PASSWORD};
-            FirebaseApp app = FirebaseApp(API_KEY);
-            app.loginUserAccount(account);
-            RTDB db = RTDB(&app, DATABASE_URL);
-           xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, NULL); // Aumentamos el tamaño de la pila aquí
+		ESP_LOGI(TAG, "Starting client...");
+		if (INITIALIZING)
+		{
+			// Config and Authentication
+			user_account_t account = {USER_EMAIL, USER_PASSWORD};
+			FirebaseApp app = FirebaseApp(API_KEY);
+			app.loginUserAccount(account);
+			RTDB db = RTDB(&app, DATABASE_URL);
+            read_server_credentials(disp_url, sizeof(disp_url), events_url, sizeof(events_url));
+            //xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
+            ESP_LOGI(TAG, "Device URL: %s", disp_url);
+            ESP_LOGI(TAG, "Events URL: %s", events_url);
+            snprintf(url, sizeof(url), "%snewData.json", events_url);
+            ESP_LOGI(TAG, "%s", url);
         }
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD);
-        // Start SoftAP
-        ESP_LOGI(TAG, "Starting SoftAP");
-        lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
-        lcd_send_string("CREANDO AP");
-        wifi_init_softap();
+			ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
+								wifiSsid, wifiPassword);
+			// Start SoftAP
+			ESP_LOGI(TAG, "Starting SoftAP");
+			lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+			lcd_send_string("CREANDO AP");
+			wifi_init_softap();
     } else {
-        ESP_LOGE(TAG, "UNEXPECTED EVENT");
+			ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
     if(INITIALIZING){
-        INITIALIZING = 0;
-        xTaskCreate(button_task, "button_task", 2048, NULL, 10, NULL);
-        ESP_LOGI(TAG, "Buttons tasks created");
-        xTaskCreate(data_processing_task, "data_processing_task", 4096, NULL, 5, NULL);
-        ESP_LOGI(TAG, "Data processing tasks created");
+			INITIALIZING = 0;
+			xTaskCreate(button_task, "button_task", 2048, NULL, 10, &buttonTaskHandler);
+			ESP_LOGI(TAG, "Buttons tasks created");
+			xTaskCreate(data_processing_task, "data_processing_task", 4096, NULL, 5, &dataProcessHandler);
+			ESP_LOGI(TAG, "Data processing tasks created");
     }
 }

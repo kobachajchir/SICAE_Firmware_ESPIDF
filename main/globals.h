@@ -73,9 +73,12 @@ extern const uint8_t clientcert_pem_end[] asm("_binary_clientcert_pem_end");
 #define I2C_MASTER_RX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
 #define SLAVE_ADDRESS_LCD 0x27 /*!< I2C address of the PCF8574T chip */
 
+#define WIFI_SSID_MAX_LEN 32
+#define WIFI_PASS_MAX_LEN 64
+#define URL_MAX_LEN 256
+#define SERVER_URL_MAX_LEN 156
+
 /* WiFi Configuration */
-#define CONFIG_ESP_WIFI_SSID "Koba"
-#define CONFIG_ESP_WIFI_PASSWORD "koba1254"
 #define CONFIG_ESP_MAXIMUM_RETRY 5
 
 #define CONFIG_SOFTAP_SSID "ESP32AP"
@@ -96,9 +99,12 @@ extern char linea[16];
 
 extern char device_id[18];
 extern uint8_t mac[6];
-extern char url[256];
+extern char url[URL_MAX_LEN];
+extern char disp_url[SERVER_URL_MAX_LEN];
+extern char events_url[SERVER_URL_MAX_LEN];
 extern char urlSection[50];
-
+extern char wifiSsid[WIFI_SSID_MAX_LEN];
+extern char wifiPassword[WIFI_PASS_MAX_LEN];
 extern char *response_data;
 extern int response_data_len;
 

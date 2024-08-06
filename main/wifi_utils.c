@@ -22,9 +22,7 @@ void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, voi
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        snprintf(linea, sizeof(linea), IPSTR, IP2STR(&event->ip_info.ip));
-        lcd_put_cur(1, 0); // Move cursor to the beginning of the second line
-        lcd_send_string(linea); // Display the IP address
+        printCurrentIP("WIFI CONECTADO");
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
@@ -59,13 +57,10 @@ void wifi_init_softap(void) {
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s",
              CONFIG_SOFTAP_SSID, CONFIG_SOFTAP_PASSWORD);
-     esp_netif_ip_info_t ip_info;
+    esp_netif_ip_info_t ip_info;
     esp_netif_get_ip_info(esp_netif_create_default_wifi_ap(), &ip_info);
-    snprintf(linea, sizeof(linea), IPSTR, IP2STR(&ip_info.ip));
-    lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
-    lcd_send_string("AP CREADO");
-    lcd_put_cur(1, 0); // Move cursor to the beginning of the second line
-    lcd_send_string(linea); // Display the AP IP address
+    printCurrentIP("AP CREADO");
+
 }
 
 void wifi_init_sta(void) {
@@ -122,8 +117,7 @@ void wifi_init_sta(void) {
             portMAX_DELAY);
 
     if (bits & WIFI_CONNECTED_BIT) {
-        lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
-        lcd_send_string("WIFI CONECTADO");
+
     } else if (bits & WIFI_FAIL_BIT) {
         // Start SoftAP
         ESP_LOGI(TAG, "Starting SoftAP");
@@ -132,5 +126,45 @@ void wifi_init_sta(void) {
         wifi_init_softap();
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
+    }
+}
+
+void printCurrentIP() {
+    esp_netif_ip_info_t ip_info;
+    esp_netif_t *netif = NULL;
+    wifi_mode_t mode;
+    
+    esp_wifi_get_mode(&mode);
+
+    if (mode == WIFI_MODE_STA) {
+        netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (netif != NULL) {
+            esp_netif_get_ip_info(netif, &ip_info);
+            lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("WIFI CONECTADO");
+
+            char linea[16];
+            snprintf(linea, sizeof(linea), IPSTR, IP2STR(&ip_info.ip));
+            lcd_put_cur(1, 0); // Move cursor to the beginning of the second line
+            lcd_send_string(linea); // Display the IP address
+        } else {
+            ESP_LOGE("printCurrentIP", "Station interface not found");
+        }
+    } else if (mode == WIFI_MODE_AP) {
+        netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+        if (netif != NULL) {
+            esp_netif_get_ip_info(netif, &ip_info);
+            lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("AP CREADO");
+
+            char linea[16];
+            snprintf(linea, sizeof(linea), IPSTR, IP2STR(&ip_info.ip));
+            lcd_put_cur(1, 0); // Move cursor to the beginning of the second line
+            lcd_send_string(linea); // Display the IP address
+        } else {
+            ESP_LOGE("printCurrentIP", "AP interface not found");
+        }
+    } else {
+        ESP_LOGE("printCurrentIP", "Unknown WiFi mode");
     }
 }

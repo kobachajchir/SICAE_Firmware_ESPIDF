@@ -217,7 +217,7 @@ void initialize_nvs_with_default_data(char* device_id) {
             }
 
             // Establece la bandera "initialized"
-            initialized = 0;
+            initialized = 1;
             err = nvs_set_u8(my_handle, "initialized", initialized);
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "Error (%s) setting initialized flag!", esp_err_to_name(err));

@@ -139,26 +139,32 @@ void data_processing_task(void *pvParameters) {
     while (1) {
         if (FETCHNEWINFODATA) {
             FETCHNEWINFODATA = 0;
+            ESP_LOGI(TAG, "New Info data"); //No new data enters here
             lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
             lcd_send_string("ACTUALIZANDO");
             lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
             lcd_send_string("OBTENIENDO INFO");
+            vTaskSuspend(dataFetchHandler);
             firebase_get_dispositivo_info();
         }
         
         if (FETCHNEWDEVICESDATA) {
             FETCHNEWDEVICESDATA = 0;
+            ESP_LOGI(TAG, "New Devices data"); //No new data enters here
             lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
             lcd_send_string("ACTUALIZANDO");
             lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
             lcd_send_string("OBTENIENDO DISP");
+            vTaskSuspend(dataFetchHandler);
             firebase_get_dispositivo_device();
         }
         
         if (POSTNONEWDATA) {
             POSTNONEWDATA = 0;
-            ESP_LOGI(TAG, "HERE3"); //No new data enters here
+            ESP_LOGI(TAG, "Clear new data"); //No new data enters here
             clear_new_data_section();
+            vTaskResume(dataFetchHandler);
+            printCurrentIP();
         }
         
         // Sleep for a short time to yield control to other tasks
@@ -227,12 +233,12 @@ extern "C" void app_main(void){
 			FirebaseApp app = FirebaseApp(API_KEY);
 			app.loginUserAccount(account);
 			RTDB db = RTDB(&app, DATABASE_URL);
+            lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("LOGUEANDO EN");
+            lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("FIREBASE");
             read_server_credentials(disp_url, sizeof(disp_url), events_url, sizeof(events_url));
-            //xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
-            ESP_LOGI(TAG, "Device URL: %s", disp_url);
-            ESP_LOGI(TAG, "Events URL: %s", events_url);
-            snprintf(url, sizeof(url), "%snewData.json", events_url);
-            ESP_LOGI(TAG, "%s", url);
+            xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
         }
     } else if (bits & WIFI_FAIL_BIT) {
 			ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
@@ -251,5 +257,6 @@ extern "C" void app_main(void){
 			ESP_LOGI(TAG, "Buttons tasks created");
 			xTaskCreate(data_processing_task, "data_processing_task", 4096, NULL, 5, &dataProcessHandler);
 			ESP_LOGI(TAG, "Data processing tasks created");
+            printCurrentIP();
     }
 }

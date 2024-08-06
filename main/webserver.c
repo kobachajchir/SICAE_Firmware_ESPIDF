@@ -81,7 +81,6 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
                     cJSON *section = cJSON_GetObjectItem(json, "section");
                     if (cJSON_IsString(section)) {
                         const char *section_value = section->valuestring;
-                        ESP_LOGI(TAG, "HERE"); //No new data enters here
 
                         // Store section_value in urlSection
                         strncpy(urlSection, section_value, sizeof(urlSection) - 1);

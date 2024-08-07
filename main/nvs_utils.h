@@ -20,6 +20,8 @@ extern "C" {
     void initialize_nvs_with_default_data(char* device_id);
     void read_ap_credentials(char *ssid, size_t ssid_len, char *password, size_t password_len);
     void save_ap_credentials(const char *ssid, const char *password);
+    void read_firmware();
+    void save_firmware();
 #ifdef __cplusplus
 }
 #endif

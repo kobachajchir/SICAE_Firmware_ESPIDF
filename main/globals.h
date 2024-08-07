@@ -20,6 +20,8 @@
 #include "esp_efuse_table.h"
 #include "esp_http_client.h"
 
+#define FIRMWARE "0.0.1"
+
 /* Pin declarations */
 #define PIN_BTN_ENTER 39
 #define PIN_BTN_UP 35
@@ -107,7 +109,10 @@ extern char wifiSsid[WIFI_SSID_MAX_LEN];
 extern char wifiPassword[WIFI_PASS_MAX_LEN];
 extern char *response_data;
 extern int response_data_len;
-
+extern esp_netif_ip_info_t system_ip;
 extern bool use_ssl; // Flag to control SSL usage
+extern char firmwareVersion[16];
+extern time_t now;
+extern struct tm timeinfo;
 
 #endif // GLOBALS_H

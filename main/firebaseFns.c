@@ -11,6 +11,9 @@
 #include "json/cJSON/cJSON.h"
 #include "json/cJSON/cJSON_Utils.h"
 #include "lcd_utils.h" // Include the header for LCD functions
+#include "wifi_utils.h"
+#include "httpMethods.h"
+#include "ntp.h"
 
 static const char *TAG = "firebaseFns";
 
@@ -103,26 +106,84 @@ void clear_new_data_section(void){
     free(post_data);
 }
 
-void perform_http_get(const char* url) {
-    esp_http_client_config_t config = {
-        .url = url,
-        .method = HTTP_METHOD_GET,
-        .cert_pem = (const char *)clientcert_pem_start,
-        .event_handler = client_event_get_handler
-    };
-
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    ESP_LOGI(TAG, "Request HTTP GET to URL: %s", config.url);
-    
-    esp_err_t err = esp_http_client_perform(client);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %d",
-                 esp_http_client_get_status_code(client),
-                 (int)esp_http_client_get_content_length(client));
-    } else {
-        ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
+void firebase_set_dispositivo_info() {
+    // Set up the JSON object
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) {
+        ESP_LOGE(TAG, "Failed to create JSON object");
+        return;
     }
-    esp_http_client_cleanup(client);
+
+    cJSON_AddStringToObject(root, "salaName", "Sala Piloto");
+    cJSON_AddStringToObject(root, "firmware", firmwareVersion);
+    cJSON_AddStringToObject(root, "ssid", wifiSsid);
+    cJSON_AddBoolToObject(root, "status", true);
+
+    // Format and add the IP address
+    char ip_str[16];
+    snprintf(ip_str, sizeof(ip_str), IPSTR, IP2STR(&system_ip.ip));
+    cJSON_AddStringToObject(root, "ip", ip_str);
+
+    // Add lastConnectionTime field
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    char time_str[64];
+    strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%S", &timeinfo);  // Remove 'Z'
+    cJSON_AddStringToObject(root, "lastConnectionTime", time_str);
+
+    // Convert JSON object to string
+    char *put_data = cJSON_Print(root);
+    if (put_data == NULL) {
+        ESP_LOGE(TAG, "Failed to print JSON object");
+        cJSON_Delete(root);
+        return;
+    }
+
+    snprintf(url, sizeof(url), "%sinfo.json", disp_url);
+
+    // Perform the HTTP PUT
+    perform_http_put(url, put_data);
+
+    // Clean up
+    cJSON_free(put_data);
+    cJSON_Delete(root);
+}
+
+void send_alive_package() {
+    // Set up the JSON object
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL) {
+        ESP_LOGE(TAG, "Failed to create JSON object");
+        return;
+    }
+
+    // Only update the status to true
+    cJSON_AddBoolToObject(root, "status", true);
+
+    // Add lastConnectionTime field
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    char time_str[64];
+    strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%S", &timeinfo);  // Remove 'Z'
+    cJSON_AddStringToObject(root, "lastConnectionTime", time_str);
+
+    // Convert JSON object to string
+    char *patch_data = cJSON_Print(root);
+    if (patch_data == NULL) {
+        ESP_LOGE(TAG, "Failed to print JSON object");
+        cJSON_Delete(root);
+        return;
+    }
+
+    // Assuming `disp_url` is a global variable or accessible in this scope
+    snprintf(url, sizeof(url), "%sinfo.json", disp_url);
+
+    // Perform the HTTP PATCH
+    perform_http_patch(url, patch_data);
+
+    // Clean up
+    cJSON_free(patch_data);
+    cJSON_Delete(root);
 }
 
 void firebase_get_dispositivo_info() {

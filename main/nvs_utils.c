@@ -17,6 +17,50 @@ void nvs_init() {
     ESP_ERROR_CHECK(ret);
 }
 
+void read_firmware() {
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
+        return;
+    }
+
+    size_t firmwareVersion_len = sizeof(firmwareVersion);
+    err = nvs_get_str(my_handle, "firmware", firmwareVersion, &firmwareVersion_len);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error (%s) reading firmware version!", esp_err_to_name(err));
+        // Optionally set a default value if read fails
+        strcpy(firmwareVersion, "0.0.0");
+    } else {
+        ESP_LOGI(TAG, "Firmware read: %s", firmwareVersion);
+    }
+
+    nvs_close(my_handle);
+}
+
+void save_firmware() {
+    nvs_handle_t my_handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
+        return;
+    }
+
+    err = nvs_set_str(my_handle, "firmware", FIRMWARE);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error (%s) saving firmware version!", esp_err_to_name(err));
+    } else {
+        ESP_LOGI(TAG, "Firmware saved: %s", FIRMWARE);
+    }
+
+    err = nvs_commit(my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error (%s) committing NVS!", esp_err_to_name(err));
+    }
+
+    nvs_close(my_handle);
+}
+
 void read_server_credentials(char* disp_url, size_t disp_url_len, char* events_url, size_t events_url_len) {
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("storage", NVS_READONLY, &my_handle);
@@ -176,6 +220,11 @@ void initialize_nvs_with_default_data(char* device_id) {
         if (err == ESP_ERR_NVS_NOT_FOUND || initialized == 0) {
         	ESP_LOGI(TAG, "Initializing NVS Data");
             // Guarda los datos por defecto si no están inicializados
+            err = nvs_set_str(my_handle, "firmware", FIRMWARE);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Error (%s) saving default SSID!", esp_err_to_name(err));
+            }
+
             err = nvs_set_str(my_handle, "wifi_ssid", "Koba");
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "Error (%s) saving default SSID!", esp_err_to_name(err));

@@ -34,6 +34,7 @@
 #include "firebaseFns.h"
 #include "spiffs.h"
 #include "nvs_utils.h"
+#include "ntp.h"
 
 TaskHandle_t buttonTaskHandler;
 TaskHandle_t dataFetchHandler;
@@ -43,6 +44,8 @@ char wifiPassword[WIFI_PASS_MAX_LEN] = {0};
 char url[URL_MAX_LEN] = {0};
 char disp_url[SERVER_URL_MAX_LEN] = {0};
 char events_url[SERVER_URL_MAX_LEN] = {0};
+time_t now = 0;
+struct tm timeinfo = { 0 };
 
 using namespace ESPFirebase;
 
@@ -57,6 +60,7 @@ extern "C" {
     void button_task(void *arg);
     void data_processing_task(void *pvParameters);
     void check_new_data_task(void *pvParameter);
+    void alive_package_task(void *pvParameters);
 }
 
 static const char *TAG = "main";
@@ -77,6 +81,8 @@ char urlSection[50];
 char *response_data = NULL;
 int response_data_len = 0;
 bool use_ssl = false;
+esp_netif_ip_info_t system_ip;
+char firmwareVersion[16] = {0};
 
 extern "C" void init_gpio() {
     gpio_config_t io_conf;
@@ -90,7 +96,6 @@ extern "C" void init_gpio() {
 
 extern "C" void get_current_time(char *buffer, size_t max_len)
 {
-    time_t now;
     struct tm timeinfo;
     time(&now);
     localtime_r(&now, &timeinfo);
@@ -172,6 +177,15 @@ void data_processing_task(void *pvParameters) {
     }
 }
 
+void alive_package_task(void *pvParameters) {
+    while (1) {
+        // Call the function to send the alive package
+        send_alive_package();
+
+        // Wait for 1 minute (60000 milliseconds)
+        vTaskDelay(pdMS_TO_TICKS(60000));
+    }
+}
 
 extern "C" void app_main(void){
 	esp_err_t ret;
@@ -182,7 +196,9 @@ extern "C" void app_main(void){
 	ESP_LOGI(TAG, "Device ID %s", device_id);
 	ESP_LOGI(TAG, "Inicializando");
 	initialize_nvs_with_default_data(device_id);
-	ESP_LOGI(TAG, "Initializing GPIO...");
+    read_firmware();
+    ESP_LOGI(TAG, "Firmware version: %s", firmwareVersion);
+    ESP_LOGI(TAG, "Initializing GPIO...");
 	init_gpio();
 	ESP_LOGI(TAG, "GPIO Initialized with external pull-down resistors");
 
@@ -229,16 +245,26 @@ extern "C" void app_main(void){
 		if (INITIALIZING)
 		{
 			// Config and Authentication
+            ESP_LOGI(TAG, "Obteniendo NTP");
+            lcd_clear();
+            lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("OBTENIENDO");
+            lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
+            lcd_send_string("TIEMPO NTP");
+            obtain_time();
 			user_account_t account = {USER_EMAIL, USER_PASSWORD};
 			FirebaseApp app = FirebaseApp(API_KEY);
 			app.loginUserAccount(account);
 			RTDB db = RTDB(&app, DATABASE_URL);
+            lcd_clear();
             lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
             lcd_send_string("LOGUEANDO EN");
             lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
             lcd_send_string("FIREBASE");
             read_server_credentials(disp_url, sizeof(disp_url), events_url, sizeof(events_url));
+            firebase_set_dispositivo_info();
             xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
+            xTaskCreate(alive_package_task, "alive_package_task", 4096, NULL, 5, NULL);
         }
     } else if (bits & WIFI_FAIL_BIT) {
 			ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",

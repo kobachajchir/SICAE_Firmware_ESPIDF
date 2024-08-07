@@ -66,6 +66,12 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
             ESP_LOGE(TAG, "Failed to get request URL: %s", esp_err_to_name(url_err));
         }
         break;
+    case HTTP_EVENT_HEADER_SENT:
+            ESP_LOGI(TAG, "HTTP_EVENT_HEADER_SENT");
+        break;
+    case HTTP_EVENT_ON_HEADER:
+            ESP_LOGI(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+        break;
     case HTTP_EVENT_ON_FINISH:
         if (response_data) {
             ESP_LOGI(TAG, "HTTP GET Response: %s", response_data);

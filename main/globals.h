@@ -20,12 +20,15 @@
 #include "esp_efuse_table.h"
 #include "esp_http_client.h"
 
-#define FIRMWARE "0.0.1"
+#define FIRMWARE "0.0.2"
 
 /* Pin declarations */
 #define PIN_BTN_ENTER 39
 #define PIN_BTN_UP 35
 #define PIN_BTN_DOWN 34
+//#define PIN_LDR 36
+#define PIN_IR_RECEIVER 18
+#define PIN_IR 19
 
 /* Timer defines */
 #define MINMSTIME 10 //Time in ms for entering the loop

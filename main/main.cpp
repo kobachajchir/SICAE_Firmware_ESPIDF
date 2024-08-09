@@ -187,6 +187,41 @@ void alive_package_task(void *pvParameters) {
     }
 }
 
+// Transmitter task
+void nec_tx_task(void *arg) {
+    init_nec_codes();  // Initialize the table with example values
+
+        while (1) {
+                if (transmitFlag) {
+                            if (nec_codes[selectIndex].address != 0 || nec_codes[selectIndex].command != 0) {
+                                            ESP_LOGI(TAG, "Sending NEC code: Address=%04x, Command=%04x", nec_codes[selectIndex].address, nec_codes[selectIndex].command);
+                                                            nec_send_frame(EXAMPLE_IR_TX_CHANNEL, nec_codes[selectIndex].address, nec_codes[selectIndex].command);
+                                                                            transmitFlag = 0;  // Reset transmit flag after sending
+                                                                                        }
+                                                                                                }
+                                                                                                        vTaskDelay(1000 / portTICK_PERIOD_MS);  // Delay between checks
+                                                                                                            }
+                                                                                                            }
+
+                                                                                                            // Receiver task
+                                                                                                            void rmt_example_nec_rx_task(void *arg) {
+                                                                                                                while (1) {
+                                                                                                                        // Wait for NEC frame
+                                                                                                                                size_t rx_size = 0;
+                                                                                                                                        rmt_item32_t* items = (rmt_item32_t*) xRingbufferReceive(RingBufHandle, &rx_size, portMAX_DELAY);
+                                                                                                                                                if (items) {
+                                                                                                                                                            uint16_t address = 0;
+                                                                                                                                                                        uint16_t command = 0;
+                                                                                                                                                                                    // Parse received NEC frame
+                                                                                                                                                                                                nec_parser_frame(items, rx_size / 4, &address, &command);
+                                                                                                                                                                                                            print_nec_code(address, command); // Print the received NEC code
+                                                                                                                                                                                                                        append_nec_code(address, command);
+                                                                                                                                                                                                                                    // Return received items to the ring buffer
+                                                                                                                                                                                                                                                vRingbufferReturnItem(RingBufHandle, (void*) items);
+                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                            }
+
 extern "C" void app_main(void){
 	esp_err_t ret;
 	nvs_init(); // init nvs
@@ -206,6 +241,21 @@ extern "C" void app_main(void){
 	ESP_ERROR_CHECK(ret);
 
 	lcd_init();
+    nec_encoder_init(EXAMPLE_IR_TX_CHANNEL);
+        rmt_config_t rmt_rx = {
+                .rmt_mode = RMT_MODE_RX,
+                        .channel = EXAMPLE_IR_RX_CHANNEL,
+                                .clk_div = 80,
+                                        .gpio_num = EXAMPLE_IR_RX_GPIO_NUM,
+                                                .mem_block_num = 1,
+                                                        .rx_config = {
+                                                                    .filter_en = true,
+                                                                                .filter_ticks_thresh = 100,
+                                                                                            .idle_threshold = RMT_RX_IDLE_THRESH,
+                                                                                                    }
+                                                                                                        };
+                                                                                                            rmt_config(&rmt_rx);
+                                                                                                                rmt_driver_install(rmt_rx.channel, 1000, 0);
 	ESP_LOGI(TAG, "LCD initialized successfully");
 	lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
 	lcd_send_string("INICIANDO");
@@ -284,5 +334,10 @@ extern "C" void app_main(void){
 			xTaskCreate(data_processing_task, "data_processing_task", 4096, NULL, 5, &dataProcessHandler);
 			ESP_LOGI(TAG, "Data processing tasks created");
             printCurrentIP();
+            // Create task to process received NEC signals
+                xTaskCreate(rmt_example_nec_rx_task, "rmt_nec_rx_task", 2048, NULL, 10, NULL);
+                    
+                        // Create transmitter task
+                            xTaskCreate(nec_tx_task, "nec_tx_task", 2048, NULL, 10, NULL);
     }
 }

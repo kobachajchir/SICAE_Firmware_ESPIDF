@@ -3,3 +3,4 @@ sdkconfig
 sdkconfig.old
 components/
 managed_components/
+components/arduino

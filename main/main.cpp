@@ -4,6 +4,7 @@
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include <stdio.h>
+#include <stdint.h>
 #include <sys/param.h>
 #include <string.h>
 #include "nvs_flash.h"
@@ -36,6 +37,7 @@
 #include "spiffs.h"
 #include "nvs_utils.h"
 #include "ntp.h"
+#include "IR_utils.h"
 
 using namespace ESPFirebase;
 
@@ -233,8 +235,10 @@ extern "C" void app_main(void)
     lcd_send_string("INICIANDO");
     lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
     lcd_send_string("FILESYSTEM");
-    // Initialize SPIFFS
     init_spiffs();
+    lcd_send_string("IR RX");
+    // Configura el receptor IR en el pin adecuado
+    // Initialize SPIFFS
     lcd_clear_line(1);
     lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
     lcd_send_string("WIFI");
@@ -285,8 +289,8 @@ extern "C" void app_main(void)
             lcd_send_string("FIREBASE");
             read_server_credentials(disp_url, sizeof(disp_url), events_url, sizeof(events_url));
             firebase_set_dispositivo_info();
-            xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
-            xTaskCreate(alive_package_task, "alive_package_task", 4096, NULL, 5, NULL);
+            // xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
+            // xTaskCreate(alive_package_task, "alive_package_task", 4096, NULL, 5, NULL);
         }
     }
     else if (bits & WIFI_FAIL_BIT)

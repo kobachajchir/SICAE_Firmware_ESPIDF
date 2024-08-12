@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # List your component directories
-list(APPEND EXTRA_COMPONENT_DIRS "components/jsoncpp" "components/esp_firebase" "components/arduino/esp32-arduino-lib-builder/components/arduino_tinyusb")
+list(APPEND EXTRA_COMPONENT_DIRS "components/jsoncpp" "components/esp_firebase" "components/arduino/esp32-arduino-lib-builder/components/arduino_tinyusb" "components/arduino/libraries/Arduino-IRremote-4.4.0")
 
 # Generate SPIFFS image
 spiffs_create_partition_image(spiffs data FLASH_IN_PROJECT)

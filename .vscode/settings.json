@@ -20,6 +20,16 @@
     "irlib_p01_nec.h": "c",
     "irlibdecodebase.h": "c",
     "esp_efuse_table.h": "c",
-    "esp_http_client.h": "c"
+    "esp_http_client.h": "c",
+    "esp_err.h": "c",
+    "wordunion.h": "c",
+    "stdint.h": "c",
+    "longunion.h": "c",
+    "compare": "cpp",
+    "task.h": "c",
+    "globals.h": "c",
+    "irsendstruct.h": "c",
+    "irreceivestruct.h": "c",
+    "irdatastruct.h": "c"
   }
 }

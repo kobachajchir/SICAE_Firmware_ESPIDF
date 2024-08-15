@@ -1,6 +1,21 @@
+# Ignore the build directory
 build/
+
+# Ignore the sdkconfig files
 sdkconfig
 sdkconfig.old
-components/
-managed_components/
-components/arduino
+
+# Ignore all of components directory
+components/*
+
+# Ignore all of managed_components directory
+managed_components/*
+
+# Ignore everything in components/arduino directory
+components/arduino/*
+
+# Unignore only the Arduino-IRremote-4.4.0 folder inside components/arduino
+!components/arduino/Arduino-IRremote-4.4.0/
+
+# Optional: If you want to track all files inside the Arduino-IRremote-4.4.0 folder
+!components/arduino/Arduino-IRremote-4.4.0/**

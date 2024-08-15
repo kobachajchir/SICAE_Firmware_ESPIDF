@@ -19,6 +19,41 @@
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
 #include "esp_http_client.h"
+#include "irDataStruct.h"
+#include "irReceiveStruct.h"
+#include "irSendStruct.h"
+
+#if !defined(RAW_BUFFER_LENGTH)
+#if (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
+#define RAW_BUFFER_LENGTH 200
+#else
+#define RAW_BUFFER_LENGTH 750
+#endif
+#endif
+#if RAW_BUFFER_LENGTH % 2 == 1
+#error RAW_BUFFER_LENGTH must be even
+#endif
+
+#if RAW_BUFFER_LENGTH <= 254
+typedef uint_fast8_t IRRawlenType;
+#else
+typedef unsigned int IRRawlenType;
+#endif
+
+typedef struct {
+    uint_fast8_t IRReceivePin;
+    uint16_t TickCounterForISR;
+    uint16_t initialGapTicks;
+    uint8_t rawlen;
+    uint8_t StateForISR;
+    bool OverflowFlag;
+    uint16_t rawbuf[RAW_BUFFER_LENGTH];
+} irparams_struct;
+
+// Global variable for storing decoded IR data
+irparams_struct irparams;
+IRData decodedIRData;
+IRsendStruct IrSender;
 
 #define FIRMWARE "0.0.2"
 
@@ -27,8 +62,17 @@
 #define PIN_BTN_UP 35
 #define PIN_BTN_DOWN 34
 // #define PIN_LDR 36
-#define PIN_IR_RECEIVER 19
-#define PIN_IR 18
+
+#define IR_RECEIVE_PIN 19  //
+#define IR_SEND_PIN 18     //
+#define TONE_PIN 27        // D27 25 & 26 are DAC0 and 1
+#define APPLICATION_PIN 16 // RX2 pin
+
+#define SEND_PWM_BY_TIMER
+// #define EXCLUDE_UNIVERSAL_PROTOCOLS // Saves up to 1000 bytes program memory.
+//  #define EXCLUDE_EXOTIC_PROTOCOLS // saves around 650 bytes program memory if all other protocols are active
+
+#include <IRremote.cpp>
 
 /* Timer defines */
 #define MINMSTIME 10            // Time in ms for entering the loop

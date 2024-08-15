@@ -39,11 +39,19 @@
 #include "ntp.h"
 #include "IR_utils.h"
 
+#if defined(APPLICATION_PIN)
+#define DEBUG_BUTTON_PIN APPLICATION_PIN // if low, print timing for each received data set
+#else
+#define DEBUG_BUTTON_PIN 6
+#endif
+
 using namespace ESPFirebase;
 
 TaskHandle_t buttonTaskHandler;
 TaskHandle_t dataFetchHandler;
 TaskHandle_t dataProcessHandler;
+TaskHandle_t irReceiveTaskHandle;
+TaskHandle_t longPressTaskHandle;
 char wifiSsid[WIFI_SSID_MAX_LEN] = {0};
 char wifiPassword[WIFI_PASS_MAX_LEN] = {0};
 char url[URL_MAX_LEN] = {0};
@@ -225,10 +233,8 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Initializing GPIO...");
     init_gpio();
     ESP_LOGI(TAG, "GPIO Initialized with external pull-down resistors");
-
     ret = i2c_master_init();
     ESP_ERROR_CHECK(ret);
-
     lcd_init();
     ESP_LOGI(TAG, "LCD initialized successfully");
     lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
@@ -237,6 +243,11 @@ extern "C" void app_main(void)
     lcd_send_string("FILESYSTEM");
     init_spiffs();
     lcd_send_string("IR RX");
+    initIR();
+    // Crear la tarea de recepción IR
+    xTaskCreate(irReceiveTask, "irReceiveTask", 4096, NULL, 5, &irReceiveTaskHandle);
+    // Crear la tarea de detección de pulsación larga
+    xTaskCreate(longPressTask, "longPressTask", 2048, NULL, 5, &longPressTaskHandle);
     // Configura el receptor IR en el pin adecuado
     // Initialize SPIFFS
     lcd_clear_line(1);

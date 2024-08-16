@@ -110,6 +110,7 @@ extern char events_url[SERVER_URL_MAX_LEN];
 extern char urlSection[50];
 extern char wifiSsid[WIFI_SSID_MAX_LEN];
 extern char wifiPassword[WIFI_PASS_MAX_LEN];
+extern char rssi_str[10];
 extern char *response_data;
 extern int response_data_len;
 extern esp_netif_ip_info_t system_ip;

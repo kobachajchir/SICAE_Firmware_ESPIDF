@@ -92,10 +92,9 @@ void clear_new_data_section(void){
             lcd_send_string("NUBE ACTUALIZADA");
             lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
             lcd_send_string("");
-            FETCHEDINFODATA = 0;
             FETCHNEWINFODATA = 0;
-            FETCHEDDEVICESDATA = 0;
-            FETCHNEWDEVICESDATA = 0;
+            FETCHNEWINFODATA = 0;
+            
         }
     } else {
         ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
@@ -113,11 +112,14 @@ void firebase_set_dispositivo_info() {
         ESP_LOGE(TAG, "Failed to create JSON object");
         return;
     }
-
+    get_wifi_signal_strength();
+    bool apMode = is_ap_mode();
     cJSON_AddStringToObject(root, "salaName", "Sala Piloto");
     cJSON_AddStringToObject(root, "firmware", firmwareVersion);
     cJSON_AddStringToObject(root, "ssid", wifiSsid);
     cJSON_AddBoolToObject(root, "status", true);
+    cJSON_AddStringToObject(root, "connDBI", rssi_str);
+    cJSON_AddBoolToObject(root, "apMode", apMode);
 
     // Format and add the IP address
     char ip_str[16];
@@ -156,7 +158,7 @@ void send_alive_package() {
         ESP_LOGE(TAG, "Failed to create JSON object");
         return;
     }
-
+    get_wifi_signal_strength();
     // Only update the status to true
     cJSON_AddBoolToObject(root, "status", true);
 
@@ -166,7 +168,7 @@ void send_alive_package() {
     char time_str[64];
     strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%S", &timeinfo);  // Remove 'Z'
     cJSON_AddStringToObject(root, "lastConnectionTime", time_str);
-
+    cJSON_AddStringToObject(root, "connDBI", rssi_str);
     // Convert JSON object to string
     char *patch_data = cJSON_Print(root);
     if (patch_data == NULL) {

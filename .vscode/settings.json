@@ -20,6 +20,7 @@
     "irlib_p01_nec.h": "c",
     "irlibdecodebase.h": "c",
     "esp_efuse_table.h": "c",
-    "esp_http_client.h": "c"
+    "esp_http_client.h": "c",
+    "lcd_utils.h": "c"
   }
 }

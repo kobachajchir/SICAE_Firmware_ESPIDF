@@ -9,6 +9,8 @@ extern "C" {
     void wifi_init_softap(void);
     void wifi_init_sta(void);
     void printCurrentIP();
+    void get_wifi_signal_strength();
+    bool is_ap_mode();
 #ifdef __cplusplus
 }
 #endif

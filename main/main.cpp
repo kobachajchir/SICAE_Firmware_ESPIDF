@@ -87,6 +87,7 @@ int response_data_len = 0;
 bool use_ssl = false;
 esp_netif_ip_info_t system_ip;
 char firmwareVersion[16] = {0};
+char rssi_str[10];
 
 extern "C" void init_gpio()
 {
@@ -289,8 +290,8 @@ extern "C" void app_main(void)
             lcd_send_string("FIREBASE");
             read_server_credentials(disp_url, sizeof(disp_url), events_url, sizeof(events_url));
             firebase_set_dispositivo_info();
-            // xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
-            // xTaskCreate(alive_package_task, "alive_package_task", 4096, NULL, 5, NULL);
+            xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
+            xTaskCreate(alive_package_task, "alive_package_task", 4096, NULL, 5, NULL);
         }
     }
     else if (bits & WIFI_FAIL_BIT)

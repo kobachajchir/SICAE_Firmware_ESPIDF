@@ -7,6 +7,40 @@ static const char *TAG = "wifi_utils";
 EventGroupHandle_t s_wifi_event_group;
 static int s_retry_num = 0;
 
+bool is_ap_mode() {
+    wifi_mode_t mode;
+    esp_err_t result = esp_wifi_get_mode(&mode);
+
+    if (result == ESP_OK) {
+        // Check if the Wi-Fi mode is AP
+        if (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA) {
+            return true; // Device is in AP mode
+        } else if (mode == WIFI_MODE_STA) {
+            return false; // Device is connected to a Wi-Fi network (Station mode)
+        }
+    } else {
+        ESP_LOGE("WIFI", "Failed to get Wi-Fi mode: %s", esp_err_to_name(result));
+    }
+
+    // Default return false if unable to determine mode
+    return false;
+}
+
+void get_wifi_signal_strength() {
+    wifi_ap_record_t ap_info;
+
+    // Get the current AP info
+    esp_err_t result = esp_wifi_sta_get_ap_info(&ap_info);
+
+    if (result == ESP_OK) {
+        // Print the RSSI (signal strength)
+        sprintf(rssi_str, "%d", ap_info.rssi);
+        ESP_LOGI("WIFI", "RSSI: %s dBm", rssi_str);
+    } else {
+        ESP_LOGE("WIFI", "Failed to get Connection info: %s", esp_err_to_name(result));
+    }
+}
+
 void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();

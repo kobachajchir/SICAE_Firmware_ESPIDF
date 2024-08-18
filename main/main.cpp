@@ -38,6 +38,8 @@
 #include "nvs_utils.h"
 #include "ntp.h"
 #include "IR_utils.h"
+#include "driver/adc.h"
+#include "devicesRelay_utils.h"
 
 using namespace ESPFirebase;
 
@@ -65,6 +67,8 @@ extern "C"
     void data_processing_task(void *pvParameters);
     void check_new_data_task(void *pvParameter);
     void alive_package_task(void *pvParameters);
+    void init_gpio();
+    void configureSingleADCChannel(adc1_channel_t adc_channel);
 }
 
 static const char *TAG = "main";
@@ -72,6 +76,7 @@ static int s_retry_num = 0;
 
 myByte btnFlag = {0};
 myByte btnFlag2 = {0};
+myByte btnFlag3 = {0};
 
 uint32_t lastTime = 0;
 uint32_t btnEnterDuration = 0;
@@ -81,7 +86,7 @@ uint32_t btnDownDuration = 0;
 char linea[16];
 char device_id[18];
 uint8_t mac[6];
-char urlSection[50];
+char urlSection[80];
 char *response_data = NULL;
 int response_data_len = 0;
 bool use_ssl = false;
@@ -89,15 +94,40 @@ esp_netif_ip_info_t system_ip;
 char firmwareVersion[16] = {0};
 char rssi_str[10];
 
-extern "C" void init_gpio()
+void init_gpio()
 {
     gpio_config_t io_conf;
+
+    // Common GPIO configuration
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << PIN_BTN_UP) | (1ULL << PIN_BTN_DOWN) | (1ULL << PIN_BTN_ENTER);
+
+    // Configure GPIOs as inputs, including GPIO36 (ADC1_0)
+    io_conf.pin_bit_mask = (1ULL << PIN_BTN_UP) | (1ULL << PIN_BTN_DOWN) | (1ULL << PIN_BTN_ENTER) | (1ULL << PIN_RELE);
+
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE; // Disable internal pull-down resistors
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;     // Disable internal pull-up resistors
+
+    // Apply the GPIO configuration
     gpio_config(&io_conf);
+}
+
+void configureSingleADCChannel(adc1_channel_t adc_channel)
+{
+    // Set ADC width to 12 bits (the default)
+    adc1_config_width(ADC_WIDTH_BIT_12);
+
+    // Configure only the specific ADC channel (ADC1_CHANNEL_0 -> GPIO36)
+    esp_err_t ret = adc1_config_channel_atten(adc_channel, ADC_ATTEN_DB_0); // Set attenuation to 0dB
+
+    if (ret == ESP_OK)
+    {
+        ESP_LOGI("ADC", "ADC channel %d configured successfully", adc_channel);
+    }
+    else
+    {
+        ESP_LOGE("ADC", "Failed to configure ADC channel %d", adc_channel);
+    }
 }
 
 extern "C" void get_current_time(char *buffer, size_t max_len)
@@ -182,6 +212,52 @@ void data_processing_task(void *pvParameters)
             vTaskSuspend(dataFetchHandler);
             firebase_get_dispositivo_device();
         }
+        if (SETNEWDEVICEDATA)
+        {
+            SETNEWDEVICEDATA = 0; // Reset the flag after handling
+
+            // Example urlSection: "set/devices/0/status/true" or "set/devices/0/status/false"
+            ESP_LOGI(TAG, "Processing new device data: %s", urlSection);
+
+            // Assuming urlSection starts with "set/devices/"
+            if (strncmp(urlSection, "set/devices/", 12) == 0)
+            {
+                char *device_str = urlSection + 12; // Get the part after "set/devices/"
+                char *status_str = strstr(device_str, "/status/");
+
+                if (status_str != NULL)
+                {
+                    // Null-terminate the device number string
+                    *status_str = '\0';
+
+                    // Move past "/status/"
+                    status_str += 8;
+
+                    // Convert the device number to an integer
+                    int device_number = atoi(device_str);
+
+                    // Determine the desired status (true/false)
+                    bool desired_status = (strcmp(status_str, "true") == 0);
+
+                    ESP_LOGI(TAG, "Device number: %d, Desired status: %s", device_number, desired_status ? "true" : "false");
+
+                    // Assuming you have a mapping of device numbers to GPIO pins
+                    // For example, device_number 0 corresponds to GPIO_PIN_X
+                    uint8_t gpioPin = PIN_RELE; // Replace with the actual GPIO pin corresponding to device_number
+
+                    // Toggle the GPIO pin based on the desired status
+                    setPower(desired_status, gpioPin);
+                }
+                else
+                {
+                    ESP_LOGE(TAG, "Invalid urlSection format: %s", urlSection);
+                }
+            }
+            else
+            {
+                ESP_LOGE(TAG, "Invalid urlSection start: %s", urlSection);
+            }
+        }
 
         if (POSTNONEWDATA)
         {
@@ -225,6 +301,7 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Firmware version: %s", firmwareVersion);
     ESP_LOGI(TAG, "Initializing GPIO...");
     init_gpio();
+    configureSingleADCChannel(ADC1_CHANNEL_0);
     ESP_LOGI(TAG, "GPIO Initialized with external pull-down resistors");
 
     ret = i2c_master_init();

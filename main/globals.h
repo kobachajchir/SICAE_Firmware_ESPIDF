@@ -26,9 +26,10 @@
 #define PIN_BTN_ENTER 39
 #define PIN_BTN_UP 35
 #define PIN_BTN_DOWN 34
-// #define PIN_LDR 36
+// #define PIN_ACS 36
 #define PIN_IR_RECEIVER 19
 #define PIN_IR 18
+#define PIN_RELE 23
 
 /* Timer defines */
 #define MINMSTIME 10            // Time in ms for entering the loop
@@ -38,6 +39,7 @@
 /* Buttons flags*/
 extern myByte btnFlag;
 extern myByte btnFlag2;
+extern myByte btnFlag3;
 extern uint32_t lastTime;
 extern uint32_t btnEnterDuration;
 extern uint32_t btnUpDuration;
@@ -65,9 +67,14 @@ extern const uint8_t clientcert_pem_end[] asm("_binary_clientcert_pem_end");
 #define FETCHNEWDEVICESDATA btnFlag2.bits.bit3          // Unused
 #define POSTNONEWDATA btnFlag2.bits.bit4                // Unused
 #define PAUSENEWDATAFETCH btnFlag2.bits.bit5            // Unused
-#define FETCHEDINFODATA btnFlag2.bits.bit6              // Unused
-#define FETCHEDDEVICESDATA btnFlag2.bits.bit7           // Unused
-//*#define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit7 //Unused
+#define FETCHNEWALIVE btnFlag2.bits.bit6 //Unused
+//#define FETCHNEWALIVE btnFlag2.bits.bit7 //Unused
+#define FETCHNEWFIRMWAREDATA  btnFlag3.bits.bit0  // Flag for fetching new firmware data
+#define FETCHNEWDATETIMEDATA  btnFlag3.bits.bit1  // Flag for fetching new datetime data
+#define SETNEWINFODATA        btnFlag3.bits.bit2  // Flag for setting new info data
+#define SETNEWDEVICEDATA      btnFlag3.bits.bit3  // Flag for setting new device data
+#define SETNEWDATETIME        btnFlag3.bits.bit4  // Flag for setting new datetime
+
 
 /* i2c Configuration */
 #define I2C_MASTER_SCL_IO GPIO_NUM_22 /*!< GPIO number for I2C master clock */
@@ -107,7 +114,7 @@ extern uint8_t mac[6];
 extern char url[URL_MAX_LEN];
 extern char disp_url[SERVER_URL_MAX_LEN];
 extern char events_url[SERVER_URL_MAX_LEN];
-extern char urlSection[50];
+extern char urlSection[80];
 extern char wifiSsid[WIFI_SSID_MAX_LEN];
 extern char wifiPassword[WIFI_PASS_MAX_LEN];
 extern char rssi_str[10];

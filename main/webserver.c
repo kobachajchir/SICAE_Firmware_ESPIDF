@@ -55,23 +55,19 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
         esp_err_t url_err = esp_http_client_get_url(evt->client, url, sizeof(url));
         if (url_err == ESP_OK) {
             ESP_LOGI(TAG, "Request URL: %s", url);
-            if (strstr(url, "/info") != NULL) {
-                FETCHEDINFODATA = 1;
-                ESP_LOGI(TAG, "from /info"); // Log for new data info
-            } else if (strstr(url, "/devices/") != NULL) {
-                FETCHEDDEVICESDATA = 1;
-                ESP_LOGI(TAG, "from /devices"); // Log for new data devices
-            }
         } else {
             ESP_LOGE(TAG, "Failed to get request URL: %s", esp_err_to_name(url_err));
         }
         break;
+
     case HTTP_EVENT_HEADER_SENT:
-            ESP_LOGI(TAG, "HTTP_EVENT_HEADER_SENT");
+        ESP_LOGI(TAG, "HTTP_EVENT_HEADER_SENT");
         break;
+
     case HTTP_EVENT_ON_HEADER:
-            ESP_LOGI(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+        ESP_LOGI(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
         break;
+
     case HTTP_EVENT_ON_FINISH:
         if (response_data) {
             ESP_LOGI(TAG, "HTTP GET Response: %s", response_data);
@@ -84,23 +80,59 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
                     lcd_send_string("DATOS NUEVOS");
                     lcd_put_cur(1, 0); 
                     lcd_send_string("DETECTADOS");
+                    
+                    // Retrieve the "section" field from the JSON response
                     cJSON *section = cJSON_GetObjectItem(json, "section");
                     if (cJSON_IsString(section)) {
                         const char *section_value = section->valuestring;
 
-                        // Store section_value in urlSection
+                        // Store section_value in urlSection for later use
                         strncpy(urlSection, section_value, sizeof(urlSection) - 1);
                         urlSection[sizeof(urlSection) - 1] = '\0'; // Ensure null termination
 
-                        // Check section
-                        if (strcmp(section_value, "/info") == 0) {
-                            FETCHNEWINFODATA = 1;
-                            ESP_LOGI(TAG, "New data info"); //No new data enters here
-                        } else if (strncmp(section_value, "/devices/", 9) == 0) {
-                            FETCHNEWDEVICESDATA = 1;
-                            ESP_LOGI(TAG, "New data devices"); //No new data enters here
+                        // Determine if the URL is for setting or getting data
+                        if (strncmp(section_value, "set/", 4) == 0) {
+                            // This is a "set" request
+                            ESP_LOGI(TAG, "Set request for section: %s", section_value);
+                            // Handle specific set operations (e.g., setting devices, info, time, etc.)
+                            if (strncmp(section_value + 4, "devices/", 8) == 0) {
+                                SETNEWDEVICEDATA = 1;
+                                ESP_LOGI(TAG, "Setting device data"); // Log for setting device data
+                            } else if (strcmp(section_value + 4, "info") == 0) {
+                                SETNEWINFODATA = 1;
+                                ESP_LOGI(TAG, "Setting info data"); // Log for setting info data
+                            } else if (strncmp(section_value + 4, "time/", 5) == 0) {
+                                SETNEWDATETIME = 1;
+                                ESP_LOGI(TAG, "Setting time"); // Log for setting time
+                            } else {
+                                ESP_LOGE(TAG, "Unknown set request: %s", section_value);
+                            }
+                        } else if (strncmp(section_value, "get/", 4) == 0) {
+                            // This is a "get" request
+                            ESP_LOGI(TAG, "Get request for section: %s", section_value);
+                            // Handle specific get operations (e.g., getting devices, info, etc.)
+                            if (strcmp(section_value + 4, "info") == 0) {
+                                FETCHNEWINFODATA = 1;
+                                ESP_LOGI(TAG, "Fetching info data"); // Log for fetching info data
+                            } else if (strcmp(section_value + 4, "devices") == 0) {
+                                FETCHNEWDEVICESDATA = 1;
+                                ESP_LOGI(TAG, "Fetching devices data"); // Log for fetching devices data
+                            } else if (strcmp(section_value + 4, "firmware") == 0) {
+                                FETCHNEWFIRMWAREDATA = 1;
+                                ESP_LOGI(TAG, "Fetching firmware data"); // Log for fetching firmware data
+                            } else if (strcmp(section_value + 4, "datetime") == 0) {
+                                FETCHNEWDATETIMEDATA = 1;
+                                ESP_LOGI(TAG, "Fetching datetime"); // Log for fetching datetime
+                            } else if (strcmp(section_value + 4, "alive") == 0) {
+                                FETCHNEWALIVE = 1;
+                                ESP_LOGI(TAG, "Fetching alive status"); // Log for fetching alive status
+                            } else {
+                                ESP_LOGE(TAG, "Unknown get request: %s", section_value);
+                            }
+                        } else {
+                            ESP_LOGE(TAG, "Unknown request type in section: %s", section_value);
                         }
-                        ESP_LOGI(TAG, "Parsed section_value: %s", section_value);
+
                     } else {
                         ESP_LOGE(TAG, "section is not a string or missing");
                     }
@@ -116,7 +148,7 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
                     ESP_LOGE(TAG, "Failed to parse JSON response");
                 }
             }
-            if(FETCHEDINFODATA || FETCHEDDEVICESDATA){
+            if (FETCHNEWINFODATA || FETCHNEWDEVICESDATA || FETCHNEWFIRMWAREDATA || FETCHNEWDATETIMEDATA || SETNEWINFODATA || SETNEWDEVICEDATA || SETNEWDATETIME) {
                 POSTNONEWDATA = 1;
             }
             free(response_data);
@@ -124,6 +156,7 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
             response_data_len = 0;
         }
         break;
+
     default:
         break;
     }

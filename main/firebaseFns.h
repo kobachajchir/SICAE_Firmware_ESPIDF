@@ -12,7 +12,9 @@ extern "C"
     void clear_new_data_section(void);
     void firebase_set_dispositivo_info();
     void firebase_get_firmware_info();
+    void firebase_update_dispositivo_device_status(int device_number, bool status);
     void send_alive_package();
+    void send_devices_pins();
 #ifdef __cplusplus
 }
 #endif

@@ -3,21 +3,13 @@
 #include "driver/gpio.h"
 #include "globals.h"
 
+const char *TAG = "devicesRelay";
+
 void setPower(bool isPowered, uint8_t gpioPort) {
-    // Check if the pin is configured as an output
-    gpio_config_t io_conf;
-    io_conf.pin_bit_mask = (1ULL << gpioPort);  // Pin mask for the given GPIO port
-    gpio_get_level(gpioPort); // get the current level to ensure the pin is initialized
-
-    // Get the current configuration of the pin
-    if (gpio_get_level(gpioPort) != -1) {
-        gpio_set_direction(gpioPort, GPIO_MODE_OUTPUT);  // Set as output if not already set
-    }
-
-    // Set the GPIO level based on the isPowered parameter
     if (isPowered) {
-        gpio_set_level(gpioPort, 1);  // Set GPIO pin high
+        gpio_set_level(gpioPort, 0); // Establece el GPIO en bajo para encender el relé
     } else {
-        gpio_set_level(gpioPort, 0);  // Set GPIO pin low
+        gpio_set_level(gpioPort, 1); // Establece el GPIO en alto para apagar el relé
     }
+    ESP_LOGI(TAG, "Set GPIO: %d, as %s", gpioPort, isPowered ? "ON" : "OFF");
 }

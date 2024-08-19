@@ -76,6 +76,7 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
             if (json) {
                 cJSON *status = cJSON_GetObjectItem(json, "status");
                 if (cJSON_IsBool(status) && cJSON_IsTrue(status)) {
+                    lcd_clear();
                     lcd_put_cur(0, 0); 
                     lcd_send_string("DATOS NUEVOS");
                     lcd_put_cur(1, 0); 

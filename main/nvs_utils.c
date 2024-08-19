@@ -204,6 +204,66 @@ void read_ap_credentials(char* ssid, size_t ssid_len, char* password, size_t pas
     }
 }
 
+esp_err_t write_device_pin_to_nvs(int device_number, uint8_t gpio_pin) {
+    nvs_handle_t my_handle;
+    esp_err_t err;
+
+    // Open NVS handle
+    err = nvs_open("storage", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Error (%s) opening NVS handle!", esp_err_to_name(err));
+        return err;
+    }
+
+    // Construct the key as "device-X" where X is the device number
+    char key[16];
+    snprintf(key, sizeof(key), "device-%d", device_number);
+
+    // Write the value (gpio_pin) to NVS
+    err = nvs_set_u8(my_handle, key, gpio_pin);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Failed to set value in NVS (%s)", esp_err_to_name(err));
+        nvs_close(my_handle);
+        return err;
+    }
+
+    // Commit the written value
+    err = nvs_commit(my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Failed to commit NVS (%s)", esp_err_to_name(err));
+    }
+
+    // Close NVS handle
+    nvs_close(my_handle);
+    return err;
+}
+
+esp_err_t read_device_pin_from_nvs(int device_number, uint8_t *gpio_pin) {
+    nvs_handle_t my_handle;
+    esp_err_t err;
+
+    // Open NVS handle
+    err = nvs_open("storage", NVS_READONLY, &my_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Error (%s) opening NVS handle!", esp_err_to_name(err));
+        return err;
+    }
+
+    // Construct the key as "device-X" where X is the device number
+    char key[16];
+    snprintf(key, sizeof(key), "device-%d", device_number);
+
+    // Read the value from NVS
+    err = nvs_get_u8(my_handle, key, gpio_pin);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Failed to get value from NVS (%s)", esp_err_to_name(err));
+    }
+
+    // Close NVS handle
+    nvs_close(my_handle);
+    return err;
+}
+
 void initialize_nvs_with_default_data(char* device_id) {
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("storage", NVS_READWRITE, &my_handle);
@@ -263,6 +323,13 @@ void initialize_nvs_with_default_data(char* device_id) {
 			err = nvs_set_str(my_handle, "ap_password", ap_password);
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "Error (%s) saving default AP Password!", esp_err_to_name(err));
+            }
+
+            char key[16];
+            snprintf(key, sizeof(key), "device-0");
+            err = nvs_set_u8(my_handle, key, 23);
+            if (err != ESP_OK) {
+                ESP_LOGE("NVS", "Failed to set value in NVS (%s)", esp_err_to_name(err));
             }
 
             // Establece la bandera "initialized"

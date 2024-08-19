@@ -98,17 +98,26 @@ void init_gpio()
 {
     gpio_config_t io_conf;
 
-    // Common GPIO configuration
+    // Configurar los pines como entradas
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
 
-    // Configure GPIOs as inputs, including GPIO36 (ADC1_0)
-    io_conf.pin_bit_mask = (1ULL << PIN_BTN_UP) | (1ULL << PIN_BTN_DOWN) | (1ULL << PIN_BTN_ENTER) | (1ULL << PIN_RELE);
+    // Pines de entrada
+    io_conf.pin_bit_mask = (1ULL << PIN_BTN_UP) | (1ULL << PIN_BTN_DOWN) | (1ULL << PIN_BTN_ENTER) | (1ULL << GPIO_NUM_36); // Añadir GPIO36 para ADC
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;                                                                           // Desactivar resistencias internas pull-down
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;                                                                               // Desactivar resistencias internas pull-up
 
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE; // Disable internal pull-down resistors
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;     // Disable internal pull-up resistors
+    // Aplicar la configuración de GPIO para entradas
+    gpio_config(&io_conf);
 
-    // Apply the GPIO configuration
+    // Configurar el pin del relé como salida
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+
+    // Solo el pin del relé como salida
+    io_conf.pin_bit_mask = (1ULL << PIN_RELE);
+
+    // Aplicar la configuración de GPIO para salidas
     gpio_config(&io_conf);
 }
 
@@ -243,10 +252,20 @@ void data_processing_task(void *pvParameters)
 
                     // Assuming you have a mapping of device numbers to GPIO pins
                     // For example, device_number 0 corresponds to GPIO_PIN_X
-                    uint8_t gpioPin = PIN_RELE; // Replace with the actual GPIO pin corresponding to device_number
+                    uint8_t gpio_pin;
+                    esp_err_t err = read_device_pin_from_nvs(device_number, &gpio_pin);
+                    if (err == ESP_OK)
+                    {
+                        ESP_LOGI("NVS", "Device 0 is mapped to GPIO %d", gpio_pin);
+                    }
+                    else
+                    {
+                        ESP_LOGE("NVS", "Failed to read GPIO pin for device 0.");
+                    }
 
                     // Toggle the GPIO pin based on the desired status
-                    setPower(desired_status, gpioPin);
+                    setPower(desired_status, gpio_pin);
+                    firebase_update_dispositivo_device_status(device_number, desired_status);
                 }
                 else
                 {

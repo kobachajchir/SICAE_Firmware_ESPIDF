@@ -23,6 +23,8 @@
     "esp_http_client.h": "c",
     "lcd_utils.h": "c",
     "globals.h": "c",
-    "cstring": "c"
+    "cstring": "c",
+    "gpio_hal.h": "c",
+    "gpio_struct.h": "c"
   }
 }

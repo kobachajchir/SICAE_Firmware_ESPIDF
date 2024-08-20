@@ -347,12 +347,12 @@ void read_acs712_task(void *param)
 
     while (true)
     {
-        int gpio_level = gpio_get_level(GPIO_NUM_23);
+        gpio_num_t pin = GPIO_NUM_23; // Replace with your actual GPIO pin number
+        int gpio_level = get_gpio_output_gpio_level(pin);
         ESP_LOGI(TAG, "GPIO level for device 0: %d", gpio_level);
 
         if (gpio_level != 0)
-        { // Check if the relay is off
-            ESP_LOGI(TAG, "Relay is off, skipping current measurement.");
+        {                                   // Check if the relay is off
             vTaskDelay(pdMS_TO_TICKS(500)); // Delay for 500 ms before checking again
             continue;
         }

@@ -354,3 +354,20 @@ void firebase_read_device_status()
     cJSON_Delete(root);
 }
 
+void firebase_update_device_current(int device_number, float average_current)
+{
+    char payload[64];  // Reduced size to minimize stack usage
+
+    // Format the URL to point directly to the device's currentConsumed field
+    snprintf(url, sizeof(url), "%sdevices/%d/currentConsumed.json", disp_url, device_number);
+
+    // Prepare the JSON payload with just the value (not as an object)
+    snprintf(payload, sizeof(payload), "%.2f", average_current);
+
+    // Log the URL and payload for debugging
+    ESP_LOGI(TAG, "Updating Firebase URL: %s", url);
+    ESP_LOGI(TAG, "Payload: %s", payload);
+
+    // Perform the HTTP PUT request to update the device current
+    perform_http_put(url, payload); // Assuming perform_http_put exists
+}

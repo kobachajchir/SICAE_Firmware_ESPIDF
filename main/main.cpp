@@ -56,6 +56,7 @@ char events_url[SERVER_URL_MAX_LEN] = {0};
 time_t now = 0;
 struct tm timeinfo = {0};
 float zeroOffset = 0.0;
+int deviceSelection = 0;
 
 // Manually define the missing type
 typedef esp_err_t (*esp_tls_handshake_callback_t)(esp_tls_t *tls, void *arg);
@@ -78,7 +79,8 @@ extern "C"
 
 static const char *TAG = "main";
 static int s_retry_num = 0;
-gpio_num_t device_pins[8] = {GPIO_NUM_23, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC};
+gpio_num_t device_pins[4] = {GPIO_NUM_23, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC};
+float device_currents[4] = {0.0, 0.0, 0.0, 0.0};
 
 myByte btnFlag = {0};
 myByte btnFlag2 = {0};
@@ -228,6 +230,14 @@ void data_processing_task(void *pvParameters)
             vTaskSuspend(aliveHandler);
             firebase_get_dispositivo_devices();
         }
+        if (SETCONSUMEDCURRENT)
+        {
+            SETCONSUMEDCURRENT = 0;
+            vTaskSuspend(aCSReadHandler);
+            firebase_update_device_current(deviceSelection, device_currents[deviceSelection]);
+            vTaskResume(aCSReadHandler);
+            POSTNONEWDATA = 1;
+        }
         if (SETNEWDEVICEDATA)
         {
             SETNEWDEVICEDATA = 0; // Reset the flag after handling
@@ -347,18 +357,18 @@ void read_acs712_task(void *param)
 
     while (true)
     {
-        gpio_num_t pin = GPIO_NUM_23; // Replace with your actual GPIO pin number
+        gpio_num_t pin = device_pins[deviceSelection]; // Replace with your actual GPIO pin number
         int gpio_level = get_gpio_output_gpio_level(pin);
         ESP_LOGI(TAG, "GPIO level for device 0: %d", gpio_level);
 
         if (gpio_level != 0)
-        {                                   // Check if the relay is off
-            vTaskDelay(pdMS_TO_TICKS(500)); // Delay for 500 ms before checking again
+        {                                    // Check if the relay is off
+            vTaskDelay(pdMS_TO_TICKS(1000)); // Delay for 1000 ms before checking again
             continue;
         }
 
         float total_current = 0;
-        for (int i = 0; i < 500; i++)
+        for (int i = 0; i < 1000; i++)
         {
             // Perform current measurement
             int adc_reading = adc1_get_raw(ADC1_CHANNEL_0);
@@ -371,11 +381,12 @@ void read_acs712_task(void *param)
         }
 
         // Calculate the average current
-        float average_current = total_current / 500;
-        ESP_LOGI(TAG, "Average measured current: %.2f A", average_current);
+        device_currents[deviceSelection] = total_current / 1000;
+        ESP_LOGI(TAG, "Average measured current: %.2f A", device_currents[deviceSelection]);
         total_current = 0;
-        // Delay for 500 ms before starting the next set of readings
-        vTaskDelay(pdMS_TO_TICKS(500));
+        SETCONSUMEDCURRENT = 1;
+        // Delay for 1000 ms before starting the next set of readings
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 

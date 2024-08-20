@@ -76,6 +76,7 @@ extern const uint8_t clientcert_pem_end[] asm("_binary_clientcert_pem_end");
 #define SETNEWDEVICEDATA btnFlag3.bits.bit3     // Flag for setting new device data
 #define SETNEWDATETIME btnFlag3.bits.bit4       // Flag for setting new datetime
 #define FETCHNEWDEVICEDATA btnFlag3.bits.bit5
+#define SETCONSUMEDCURRENT btnFlag3.bits.bit6
 
 /* i2c Configuration */
 #define I2C_MASTER_SCL_IO GPIO_NUM_22 /*!< GPIO number for I2C master clock */
@@ -101,7 +102,8 @@ extern const uint8_t clientcert_pem_end[] asm("_binary_clientcert_pem_end");
 
 #define RELAY_CHECK_INTERVAL pdMS_TO_TICKS(500) // 500 ms
 
-extern gpio_num_t device_pins[8]; // Assuming device 0 is connected to GPIO 23
+extern gpio_num_t device_pins[4]; // Assuming device 0 is connected to GPIO 23
+extern float device_currents[4];
 
 /* FreeRTOS event group to signal when we are connected */
 extern EventGroupHandle_t s_wifi_event_group;

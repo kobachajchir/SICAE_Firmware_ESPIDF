@@ -36,16 +36,18 @@
 #include "firebaseFns.h"
 #include "spiffs.h"
 #include "nvs_utils.h"
+#include "devicesRelay_utils.h"
 #include "ntp.h"
 #include "IR_utils.h"
 #include "driver/adc.h"
-#include "devicesRelay_utils.h"
 
 using namespace ESPFirebase;
 
 TaskHandle_t buttonTaskHandler;
 TaskHandle_t dataFetchHandler;
 TaskHandle_t dataProcessHandler;
+TaskHandle_t aliveHandler;
+TaskHandle_t aCSReadHandler;
 char wifiSsid[WIFI_SSID_MAX_LEN] = {0};
 char wifiPassword[WIFI_PASS_MAX_LEN] = {0};
 char url[URL_MAX_LEN] = {0};
@@ -53,6 +55,7 @@ char disp_url[SERVER_URL_MAX_LEN] = {0};
 char events_url[SERVER_URL_MAX_LEN] = {0};
 time_t now = 0;
 struct tm timeinfo = {0};
+float zeroOffset = 0.0;
 
 // Manually define the missing type
 typedef esp_err_t (*esp_tls_handshake_callback_t)(esp_tls_t *tls, void *arg);
@@ -69,10 +72,13 @@ extern "C"
     void alive_package_task(void *pvParameters);
     void init_gpio();
     void configureSingleADCChannel(adc1_channel_t adc_channel);
+    void calibrate_acs712();
+    void read_acs712_task(void *param);
 }
 
 static const char *TAG = "main";
 static int s_retry_num = 0;
+gpio_num_t device_pins[8] = {GPIO_NUM_23, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC, GPIO_NUM_NC};
 
 myByte btnFlag = {0};
 myByte btnFlag2 = {0};
@@ -127,7 +133,7 @@ void configureSingleADCChannel(adc1_channel_t adc_channel)
     adc1_config_width(ADC_WIDTH_BIT_12);
 
     // Configure only the specific ADC channel (ADC1_CHANNEL_0 -> GPIO36)
-    esp_err_t ret = adc1_config_channel_atten(adc_channel, ADC_ATTEN_DB_0); // Set attenuation to 0dB
+    esp_err_t ret = adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_11); // 11dB attenuation for full 0-3.3V range
 
     if (ret == ESP_OK)
     {
@@ -219,7 +225,8 @@ void data_processing_task(void *pvParameters)
             lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
             lcd_send_string("OBTENIENDO DISP");
             vTaskSuspend(dataFetchHandler);
-            firebase_get_dispositivo_device();
+            vTaskSuspend(aliveHandler);
+            firebase_get_dispositivo_devices();
         }
         if (SETNEWDEVICEDATA)
         {
@@ -276,6 +283,7 @@ void data_processing_task(void *pvParameters)
             {
                 ESP_LOGE(TAG, "Invalid urlSection start: %s", urlSection);
             }
+            POSTNONEWDATA = 1;
         }
 
         if (POSTNONEWDATA)
@@ -284,6 +292,7 @@ void data_processing_task(void *pvParameters)
             ESP_LOGI(TAG, "Clear new data"); // No new data enters here
             clear_new_data_section();
             vTaskResume(dataFetchHandler);
+            vTaskResume(aliveHandler);
             printCurrentIP();
         }
 
@@ -304,6 +313,72 @@ void alive_package_task(void *pvParameters)
     }
 }
 
+void calibrate_acs712()
+{
+    const int calibrationSamples = 100; // Number of samples to average
+    const float Vref = 3.3;             // ADC reference voltage
+    const int ADC_MAX = 4095;           // Maximum ADC value for a 12-bit ADC
+
+    int adcSum = 0;
+
+    for (int i = 0; i < calibrationSamples; i++)
+    {
+        int adcValue = adc1_get_raw(ADC1_CHANNEL_0); // Read ADC value
+        adcSum += adcValue;
+
+        // Small delay between samples
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    // Calculate the average ADC value
+    int adcAverage = adcSum / calibrationSamples;
+
+    // Convert ADC value to voltage
+    zeroOffset = (adcAverage / (float)ADC_MAX) * Vref;
+
+    ESP_LOGI(TAG, "Calibration complete. Zero offset voltage: %.2f V", zeroOffset);
+}
+
+void read_acs712_task(void *param)
+{
+    const float sensitivity = 0.066; // Sensitivity in V/A for the ACS712-30A model
+    const float Vref = 3.3;          // ADC reference voltage
+    const int ADC_MAX = 4095;        // Maximum ADC value for a 12-bit ADC
+
+    while (true)
+    {
+        int gpio_level = gpio_get_level(GPIO_NUM_23);
+        ESP_LOGI(TAG, "GPIO level for device 0: %d", gpio_level);
+
+        if (gpio_level != 0)
+        { // Check if the relay is off
+            ESP_LOGI(TAG, "Relay is off, skipping current measurement.");
+            vTaskDelay(pdMS_TO_TICKS(500)); // Delay for 500 ms before checking again
+            continue;
+        }
+
+        float total_current = 0;
+        for (int i = 0; i < 500; i++)
+        {
+            // Perform current measurement
+            int adc_reading = adc1_get_raw(ADC1_CHANNEL_0);
+            float voltage = ((float)adc_reading / ADC_MAX) * Vref;
+            float current = (voltage - zeroOffset) / sensitivity; // Convert voltage to current
+            total_current += current;
+
+            // Short delay between readings
+            vTaskDelay(pdMS_TO_TICKS(1)); // 1 ms delay between readings
+        }
+
+        // Calculate the average current
+        float average_current = total_current / 500;
+        ESP_LOGI(TAG, "Average measured current: %.2f A", average_current);
+        total_current = 0;
+        // Delay for 500 ms before starting the next set of readings
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
 extern "C" void app_main(void)
 {
     esp_err_t ret;
@@ -320,7 +395,12 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Firmware version: %s", firmwareVersion);
     ESP_LOGI(TAG, "Initializing GPIO...");
     init_gpio();
+    // Immediately set the relay GPIO to a known state to prevent toggling
+    gpio_set_level(GPIO_NUM_23, 1);
     configureSingleADCChannel(ADC1_CHANNEL_0);
+    ESP_LOGI(TAG, "Calibrating ACS712 sensor...");
+    calibrate_acs712(); // Call the calibration function here
+    // Keep the relay off after calibration
     ESP_LOGI(TAG, "GPIO Initialized with external pull-down resistors");
 
     ret = i2c_master_init();
@@ -358,7 +438,6 @@ extern "C" void app_main(void)
                                            pdFALSE,
                                            pdFALSE,
                                            portMAX_DELAY);
-
     if (bits & WIFI_CONNECTED_BIT)
     {
         ESP_LOGI(TAG, "WIFI connected, starting server...");
@@ -387,7 +466,9 @@ extern "C" void app_main(void)
             read_server_credentials(disp_url, sizeof(disp_url), events_url, sizeof(events_url));
             firebase_set_dispositivo_info();
             xTaskCreate(check_new_data_task, "check_new_data_task", 4096, NULL, 10, &dataFetchHandler); // Aumentamos el tamaño de la pila aquí
-            xTaskCreate(alive_package_task, "alive_package_task", 4096, NULL, 5, NULL);
+            xTaskCreate(alive_package_task, "alive_package_task", 4096, NULL, 5, &aliveHandler);
+            xTaskCreate(data_processing_task, "data_processing_task", 4096, NULL, 5, &dataProcessHandler);
+            ESP_LOGI(TAG, "Data processing tasks created");
         }
     }
     else if (bits & WIFI_FAIL_BIT)
@@ -407,10 +488,10 @@ extern "C" void app_main(void)
     if (INITIALIZING)
     {
         INITIALIZING = 0;
+        firebase_read_device_status();
         xTaskCreate(button_task, "button_task", 2048, NULL, 10, &buttonTaskHandler);
         ESP_LOGI(TAG, "Buttons tasks created");
-        xTaskCreate(data_processing_task, "data_processing_task", 4096, NULL, 5, &dataProcessHandler);
-        ESP_LOGI(TAG, "Data processing tasks created");
         printCurrentIP();
+        xTaskCreate(read_acs712_task, "read_acs712_task", 2048, NULL, 5, &aCSReadHandler);
     }
 }

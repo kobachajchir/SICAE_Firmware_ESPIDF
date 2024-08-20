@@ -9,6 +9,8 @@
 #include "json/cJSON/cJSON_Utils.h"
 #include "lcd_utils.h" 
 #include "globals.h"
+#include "nvs_utils.h"
+#include "devicesRelay_utils.h"
 
 #define FILE_PATH_MAX (256)
 #define FULL_PATH_MAX (FILE_PATH_MAX + 8) // Adding 8 to accommodate "/spiffs/"
@@ -68,72 +70,74 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
         ESP_LOGI(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
         break;
 
-    case HTTP_EVENT_ON_FINISH:
-        if (response_data) {
-            ESP_LOGI(TAG, "HTTP GET Response: %s", response_data);
-            // Parse JSON response using cJSON
+case HTTP_EVENT_ON_FINISH:
+    if (response_data) {
+        ESP_LOGI(TAG, "HTTP GET Response: %s", response_data);
+        
+        // Get the URL from which the response was received
+        esp_err_t url_err = esp_http_client_get_url(evt->client, url, sizeof(url));
+        if (url_err == ESP_OK) {
+            ESP_LOGI(TAG, "Response received from URL: %s", url);
+        } else {
+            ESP_LOGE(TAG, "Failed to get request URL: %s", esp_err_to_name(url_err));
+        }
+        
+        // Determine the response source based on the URL
+        if (strstr(url, "/newData.json")) {
+            // Process the data as "newData.json"
             cJSON *json = cJSON_Parse(response_data);
             if (json) {
                 cJSON *status = cJSON_GetObjectItem(json, "status");
                 if (cJSON_IsBool(status) && cJSON_IsTrue(status)) {
                     lcd_clear();
-                    lcd_put_cur(0, 0); 
+                    lcd_put_cur(0, 0);
                     lcd_send_string("DATOS NUEVOS");
-                    lcd_put_cur(1, 0); 
+                    lcd_put_cur(1, 0);
                     lcd_send_string("DETECTADOS");
-                    
-                    // Retrieve the "section" field from the JSON response
+
                     cJSON *section = cJSON_GetObjectItem(json, "section");
                     if (cJSON_IsString(section)) {
                         const char *section_value = section->valuestring;
-
-                        // Store section_value in urlSection for later use
                         strncpy(urlSection, section_value, sizeof(urlSection) - 1);
-                        urlSection[sizeof(urlSection) - 1] = '\0'; // Ensure null termination
+                        urlSection[sizeof(urlSection) - 1] = '\0';
 
-                        // Determine if the URL is for setting or getting data
                         if (strncmp(section_value, "set/", 4) == 0) {
-                            // This is a "set" request
                             ESP_LOGI(TAG, "Set request for section: %s", section_value);
-                            // Handle specific set operations (e.g., setting devices, info, time, etc.)
                             if (strncmp(section_value + 4, "devices/", 8) == 0) {
                                 SETNEWDEVICEDATA = 1;
-                                ESP_LOGI(TAG, "Setting device data"); // Log for setting device data
+                                ESP_LOGI(TAG, "Setting device data");
                             } else if (strcmp(section_value + 4, "info") == 0) {
                                 SETNEWINFODATA = 1;
-                                ESP_LOGI(TAG, "Setting info data"); // Log for setting info data
+                                ESP_LOGI(TAG, "Setting info data");
                             } else if (strncmp(section_value + 4, "time/", 5) == 0) {
                                 SETNEWDATETIME = 1;
-                                ESP_LOGI(TAG, "Setting time"); // Log for setting time
+                                ESP_LOGI(TAG, "Setting time");
                             } else {
                                 ESP_LOGE(TAG, "Unknown set request: %s", section_value);
                             }
                         } else if (strncmp(section_value, "get/", 4) == 0) {
-                            // This is a "get" request
                             ESP_LOGI(TAG, "Get request for section: %s", section_value);
-                            // Handle specific get operations (e.g., getting devices, info, etc.)
                             if (strcmp(section_value + 4, "info") == 0) {
                                 FETCHNEWINFODATA = 1;
-                                ESP_LOGI(TAG, "Fetching info data"); // Log for fetching info data
+                                ESP_LOGI(TAG, "Fetching info data");
                             } else if (strcmp(section_value + 4, "devices") == 0) {
                                 FETCHNEWDEVICESDATA = 1;
-                                ESP_LOGI(TAG, "Fetching devices data"); // Log for fetching devices data
+                                ESP_LOGI(TAG, "Fetching devices data");
                             } else if (strcmp(section_value + 4, "firmware") == 0) {
                                 FETCHNEWFIRMWAREDATA = 1;
-                                ESP_LOGI(TAG, "Fetching firmware data"); // Log for fetching firmware data
+                                ESP_LOGI(TAG, "Fetching firmware data");
                             } else if (strcmp(section_value + 4, "datetime") == 0) {
                                 FETCHNEWDATETIMEDATA = 1;
-                                ESP_LOGI(TAG, "Fetching datetime"); // Log for fetching datetime
+                                ESP_LOGI(TAG, "Fetching datetime");
                             } else if (strcmp(section_value + 4, "alive") == 0) {
                                 FETCHNEWALIVE = 1;
-                                ESP_LOGI(TAG, "Fetching alive status"); // Log for fetching alive status
+                                ESP_LOGI(TAG, "Fetching alive status");
                             } else {
                                 ESP_LOGE(TAG, "Unknown get request: %s", section_value);
                             }
                         } else {
                             ESP_LOGE(TAG, "Unknown request type in section: %s", section_value);
                         }
-
                     } else {
                         ESP_LOGE(TAG, "section is not a string or missing");
                     }
@@ -142,21 +146,71 @@ esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt) {
                 }
                 cJSON_Delete(json);
             } else {
-                const char *error_ptr = cJSON_GetErrorPtr();
-                if (error_ptr != NULL) {
-                    ESP_LOGE(TAG, "Failed to parse JSON response at %s", error_ptr);
+                ESP_LOGE(TAG, "Failed to parse JSON response");
+            }
+
+        } else if (strstr(url, "/devices.json")) {
+            // Process the data as "devices.json"
+            cJSON *json_array = cJSON_Parse(response_data);
+            if (json_array == NULL) {
+                ESP_LOGE(TAG, "Failed to parse JSON response");
+                break;
+            }
+
+            if (!cJSON_IsArray(json_array)) {
+                ESP_LOGE(TAG, "Expected JSON array");
+                cJSON_Delete(json_array);
+                break;
+            }
+
+            cJSON *device = NULL;
+            cJSON_ArrayForEach(device, json_array) {
+                cJSON *deviceType = cJSON_GetObjectItem(device, "deviceType");
+                cJSON *status = cJSON_GetObjectItem(device, "status");
+                cJSON *deviceId = cJSON_GetObjectItem(device, "id");
+
+                if (deviceType && status && cJSON_IsString(deviceType) && cJSON_IsBool(status) && cJSON_IsNumber(deviceId)) {
+                    if (strcmp(deviceType->valuestring, "relay") == 0) {
+                        int device_number = deviceId->valueint;
+                        uint8_t gpio_pin;
+                        esp_err_t err = read_device_pin_from_nvs(device_number, &gpio_pin);
+                        if (err == ESP_OK) {
+                            ESP_LOGI(TAG, "Device %d (relay) is mapped to GPIO %d", device_number, gpio_pin);
+                            bool relay_status = cJSON_IsTrue(status);
+                            setPower(relay_status, gpio_pin);
+                            ESP_LOGI(TAG, "Updated GPIO %d to %s based on Firebase status", gpio_pin, relay_status ? "ON" : "OFF");
+                        } else {
+                            ESP_LOGE(TAG, "Failed to read GPIO pin for device %d", device_number);
+                        }
+                    }
                 } else {
-                    ESP_LOGE(TAG, "Failed to parse JSON response");
+                    ESP_LOGE(TAG, "Invalid device data in JSON");
                 }
             }
-            if (FETCHNEWINFODATA || FETCHNEWDEVICESDATA || FETCHNEWFIRMWAREDATA || FETCHNEWDATETIMEDATA || SETNEWINFODATA || SETNEWDEVICEDATA || SETNEWDATETIME) {
-                POSTNONEWDATA = 1;
+
+            cJSON_Delete(json_array);
+        }else if (strstr(url, "/devices/") && strstr(url, ".json")) {
+            cJSON *json = cJSON_Parse(response_data);
+            if(json){
+                
             }
-            free(response_data);
-            response_data = NULL;
-            response_data_len = 0;
+        }else if (strstr(url, "/info.json")){
+            cJSON *json = cJSON_Parse(response_data);
+            if(json){
+                
+            }
+        }else {
+            ESP_LOGE(TAG, "Unknown URL or unsupported data source: %s", url);
         }
-        break;
+        if (FETCHNEWINFODATA || FETCHNEWDEVICESDATA || FETCHNEWFIRMWAREDATA || FETCHNEWDATETIMEDATA || SETNEWINFODATA || SETNEWDEVICEDATA || SETNEWDATETIME) {
+            POSTNONEWDATA = 1;
+        }
+        free(response_data);
+        response_data = NULL;
+        response_data_len = 0;
+    }
+    break;
+
 
     default:
         break;

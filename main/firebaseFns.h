@@ -15,6 +15,7 @@ extern "C"
     void firebase_update_dispositivo_device_status(int device_number, bool status);
     void send_alive_package();
     void send_devices_pins();
+    void firebase_read_device_status();
 #ifdef __cplusplus
 }
 #endif

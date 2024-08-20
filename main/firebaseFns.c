@@ -14,6 +14,8 @@
 #include "wifi_utils.h"
 #include "httpMethods.h"
 #include "ntp.h"
+#include "nvs_utils.h"
+#include "devicesRelay_utils.h"
 
 static const char *TAG = "firebaseFns";
 
@@ -314,4 +316,41 @@ void send_devices_pins() {
     nvs_close(my_handle);
 }
 
+void firebase_read_device_status()
+{
+    // Create a JSON object
+    cJSON *root = cJSON_CreateObject();
+    if (root == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create JSON object");
+        return;
+    }
+
+    // Add section and status to the JSON object
+    cJSON_AddStringToObject(root, "section", "get/devices");
+    cJSON_AddBoolToObject(root, "status", true);
+
+    // Convert JSON object to a string
+    char *json_data = cJSON_Print(root);
+    if (json_data == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to print JSON object");
+        cJSON_Delete(root);
+        return;
+    }
+
+    // Prepare the Firebase URL for updating newData
+    snprintf(url, sizeof(url), "%snewData.json", events_url);
+
+    // Log the URL and JSON data for debugging
+    ESP_LOGI(TAG, "Updating Firebase newData with URL: %s", url);
+    ESP_LOGI(TAG, "Payload: %s", json_data);
+
+    // Perform the HTTP PATCH request to update the newData
+    perform_http_put(url, json_data);
+
+    // Clean up
+    cJSON_free(json_data);
+    cJSON_Delete(root);
+}
 

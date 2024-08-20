@@ -19,14 +19,15 @@
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
 #include "esp_http_client.h"
+#include "driver/gpio.h"
 
-#define FIRMWARE "0.0.2"
+#define FIRMWARE "0.0.3"
 
 /* Pin declarations */
 #define PIN_BTN_ENTER 39
 #define PIN_BTN_UP 35
 #define PIN_BTN_DOWN 34
-// #define PIN_ACS 36
+#define PIN_ACS 36
 #define PIN_IR_RECEIVER 19
 #define PIN_IR 18
 #define PIN_RELE 23
@@ -62,19 +63,19 @@ extern const uint8_t clientcert_pem_end[] asm("_binary_clientcert_pem_end");
 #define BTN_UP_RELEASED_LONGPRESS btnFlag.bits.bit6     // Button Up released long press
 #define BTN_DOWN_RELEASED_LONGPRESS btnFlag.bits.bit7   // Button Down released long press
 #define BTN_ENTER_RELEASED_LONGPRESS btnFlag2.bits.bit0 // Button Enter released long press
-#define INITIALIZING btnFlag2.bits.bit1                 // Unused
-#define FETCHNEWINFODATA btnFlag2.bits.bit2             // Unused
-#define FETCHNEWDEVICESDATA btnFlag2.bits.bit3          // Unused
-#define POSTNONEWDATA btnFlag2.bits.bit4                // Unused
-#define PAUSENEWDATAFETCH btnFlag2.bits.bit5            // Unused
-#define FETCHNEWALIVE btnFlag2.bits.bit6 //Unused
-//#define FETCHNEWALIVE btnFlag2.bits.bit7 //Unused
-#define FETCHNEWFIRMWAREDATA  btnFlag3.bits.bit0  // Flag for fetching new firmware data
-#define FETCHNEWDATETIMEDATA  btnFlag3.bits.bit1  // Flag for fetching new datetime data
-#define SETNEWINFODATA        btnFlag3.bits.bit2  // Flag for setting new info data
-#define SETNEWDEVICEDATA      btnFlag3.bits.bit3  // Flag for setting new device data
-#define SETNEWDATETIME        btnFlag3.bits.bit4  // Flag for setting new datetime
-
+#define INITIALIZING btnFlag2.bits.bit1
+#define FETCHNEWINFODATA btnFlag2.bits.bit2
+#define FETCHNEWDEVICESDATA btnFlag2.bits.bit3
+#define POSTNONEWDATA btnFlag2.bits.bit4
+#define PAUSENEWDATAFETCH btnFlag2.bits.bit5
+#define FETCHNEWALIVE btnFlag2.bits.bit6
+#define UPDATECURRENTINFO btnFlag2.bits.bit7
+#define FETCHNEWFIRMWAREDATA btnFlag3.bits.bit0 // Flag for fetching new firmware data
+#define FETCHNEWDATETIMEDATA btnFlag3.bits.bit1 // Flag for fetching new datetime data
+#define SETNEWINFODATA btnFlag3.bits.bit2       // Flag for setting new info data
+#define SETNEWDEVICEDATA btnFlag3.bits.bit3     // Flag for setting new device data
+#define SETNEWDATETIME btnFlag3.bits.bit4       // Flag for setting new datetime
+#define FETCHNEWDEVICEDATA btnFlag3.bits.bit5
 
 /* i2c Configuration */
 #define I2C_MASTER_SCL_IO GPIO_NUM_22 /*!< GPIO number for I2C master clock */
@@ -97,6 +98,10 @@ extern const uint8_t clientcert_pem_end[] asm("_binary_clientcert_pem_end");
 #define CONFIG_SOFTAP_PASSWORD "ap123456"
 #define CONFIG_SOFTAP_CHANNEL 1
 #define CONFIG_MAX_STA_CONN 4
+
+#define RELAY_CHECK_INTERVAL pdMS_TO_TICKS(500) // 500 ms
+
+extern gpio_num_t device_pins[8]; // Assuming device 0 is connected to GPIO 23
 
 /* FreeRTOS event group to signal when we are connected */
 extern EventGroupHandle_t s_wifi_event_group;

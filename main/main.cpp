@@ -40,6 +40,7 @@
 #include "ntp.h"
 #include "IR_utils.h"
 #include "driver/adc.h"
+#include "menuTypes.h"
 
 using namespace ESPFirebase;
 
@@ -58,6 +59,42 @@ struct tm timeinfo = {0};
 float zeroOffset = 0.0;
 int deviceSelection = 0;
 
+// Define submenu 1 items
+MenuItem submenu1Items[] = {
+    {"Option 1", nullptr},
+    {"Option 2", nullptr},
+    {"VOLVER", volver}};
+
+// Define submenu 2 items
+MenuItem submenu2Items[] = {
+    {"Option 1", nullptr},
+    {"Option 2", nullptr},
+    {"VOLVER", volver}};
+
+// Define submenu 3 items
+MenuItem submenu3Items[] = {
+    {"Option 1", nullptr},
+    {"Option 2", nullptr},
+    {"VOLVER", volver}};
+
+// Define the submenus and main menu
+SubMenu submenu1 = {"SubMenu 1", submenu1Items, 3, &mainMenu};
+SubMenu submenu2 = {"SubMenu 2", submenu2Items, 3, &mainMenu};
+SubMenu submenu3 = {"SubMenu 3", submenu3Items, 3, &mainMenu};
+
+// Define main menu items
+MenuItem mainMenuItems[] = {
+    {"SubMenu 1", submenu1Fn},
+    {"SubMenu 2", submenu2Fn},
+    {"SubMenu 3", submenu3Fn},
+    {"VOLVER", volver}};
+
+// Define the main menu
+SubMenu mainMenu = {"Main Menu", mainMenuItems, 3, NULL};
+
+// Initialize the menu system
+MenuSystem menuSystem = {&mainMenu};
+
 // Manually define the missing type
 typedef esp_err_t (*esp_tls_handshake_callback_t)(esp_tls_t *tls, void *arg);
 
@@ -75,6 +112,7 @@ extern "C"
     void configureSingleADCChannel(adc1_channel_t adc_channel);
     void calibrate_acs712();
     void read_acs712_task(void *param);
+    void navigate_menu();
 }
 
 static const char *TAG = "main";
@@ -160,6 +198,10 @@ void button_task(void *arg)
     while (1)
     {
         check_buttons();
+        if (BTN_UP_RELEASED || BTN_DOWN_RELEASED || BTN_ENTER_RELEASED)
+        {
+            navigate_menu();
+        }
         vTaskDelay(pdMS_TO_TICKS(100)); // Adjust delay for main loop to 100 ms
     }
 }
@@ -390,6 +432,62 @@ void read_acs712_task(void *param)
     }
 }
 
+void navigate_menu()
+{
+    static int currentMenuIndex = 0;
+
+    // Check if the UP button is pressed
+    if (BTN_UP_RELEASED)
+    {
+        BTN_UP_RELEASED = 0;
+
+        if (--currentMenuIndex < 0)
+        {
+            currentMenuIndex = menuSystem.currentMenu->itemCount - 1;
+        }
+
+        displayMenu(&menuSystem, currentMenuIndex);
+    }
+
+    // Check if the DOWN button is pressed
+    if (BTN_DOWN_RELEASED)
+    {
+        BTN_DOWN_RELEASED = 0;
+
+        if (++currentMenuIndex >= menuSystem.currentMenu->itemCount)
+        {
+            currentMenuIndex = 0;
+        }
+
+        displayMenu(&menuSystem, currentMenuIndex);
+    }
+
+    // Check if the ENTER button is pressed
+    if (BTN_ENTER_RELEASED)
+    {
+        BTN_ENTER_RELEASED = 0;
+
+        MenuItem *selectedItem = &menuSystem.currentMenu->items[currentMenuIndex];
+
+        if (strcmp(selectedItem->name, "VOLVER") == 0)
+        {
+            volver(); // Navigate back to the parent menu
+        }
+        else if (selectedItem->action != NULL)
+        {
+            // Execute the action associated with the menu item
+            selectedItem->action();
+        }
+        else if (selectedItem->submenu != NULL)
+        {
+            // Navigate into the submenu
+            menuSystem.currentMenu = selectedItem->submenu;
+            currentMenuIndex = 0; // Reset index for the new menu
+            displayMenu(&menuSystem, currentMenuIndex);
+        }
+    }
+}
+
 extern "C" void app_main(void)
 {
     esp_err_t ret;
@@ -504,5 +602,12 @@ extern "C" void app_main(void)
         ESP_LOGI(TAG, "Buttons tasks created");
         printCurrentIP();
         xTaskCreate(read_acs712_task, "read_acs712_task", 2048, NULL, 5, &aCSReadHandler);
+        submenu1.parent = &mainMenu;
+        submenu2.parent = &mainMenu;
+        submenu3.parent = &mainMenu;
+
+        // Initialize the menu system
+        initMenuSystem(&menuSystem);
+        displayMenu(&menuSystem, 0);
     }
 }

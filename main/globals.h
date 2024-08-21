@@ -20,8 +20,9 @@
 #include "esp_efuse_table.h"
 #include "esp_http_client.h"
 #include "driver/gpio.h"
+#include "menuTypes.h"
 
-#define FIRMWARE "0.0.3"
+#define FIRMWARE "0.0.4"
 
 /* Pin declarations */
 #define PIN_BTN_ENTER 39
@@ -113,6 +114,12 @@ extern EventGroupHandle_t s_wifi_event_group;
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
+
+extern MenuSystem menuSystem;
+extern SubMenu mainMenu;
+extern SubMenu submenu1;
+extern SubMenu submenu2;
+extern SubMenu submenu3;
 
 extern char linea[16];
 

@@ -25,6 +25,8 @@
     "globals.h": "c",
     "cstring": "c",
     "gpio_hal.h": "c",
-    "gpio_struct.h": "c"
+    "gpio_struct.h": "c",
+    "cjson_utils.h": "c",
+    "complex": "cpp"
   }
 }

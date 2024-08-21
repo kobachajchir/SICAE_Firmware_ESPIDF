@@ -21,6 +21,7 @@
 #include "esp_http_client.h"
 #include "driver/gpio.h"
 #include "menuTypes.h"
+#include "deviceType.h"
 
 #define FIRMWARE "0.0.4"
 
@@ -120,6 +121,9 @@ extern SubMenu mainMenu;
 extern SubMenu submenu1;
 extern SubMenu submenu2;
 extern SubMenu submenu3;
+
+extern Device *devices;
+extern int deviceCount;
 
 extern char linea[16];
 

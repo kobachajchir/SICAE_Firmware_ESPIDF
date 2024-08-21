@@ -41,6 +41,7 @@
 #include "IR_utils.h"
 #include "driver/adc.h"
 #include "menuTypes.h"
+#include "deviceType.h"
 
 using namespace ESPFirebase;
 
@@ -90,7 +91,7 @@ MenuItem mainMenuItems[] = {
     {"VOLVER", volver}};
 
 // Define the main menu
-SubMenu mainMenu = {"Main Menu", mainMenuItems, 3, NULL};
+SubMenu mainMenu = {"Main Menu", mainMenuItems, 4, NULL};
 
 // Initialize the menu system
 MenuSystem menuSystem = {&mainMenu};
@@ -113,6 +114,8 @@ extern "C"
     void calibrate_acs712();
     void read_acs712_task(void *param);
     void navigate_menu();
+    void deviceAction();
+    void free_devices_array();
 }
 
 static const char *TAG = "main";
@@ -139,6 +142,50 @@ bool use_ssl = false;
 esp_netif_ip_info_t system_ip;
 char firmwareVersion[16] = {0};
 char rssi_str[10];
+
+Device *devices = NULL;
+int deviceCount = 0;
+
+void free_devices_array()
+{
+    if (devices != NULL)
+    {
+        for (int i = 0; i < deviceCount; i++)
+        {
+            free((void *)devices[i].name);
+            free((void *)devices[i].type);
+        }
+        free(devices);
+        devices = NULL;
+        deviceCount = 0;
+    }
+}
+
+void deviceAction(int currentMenuIndex)
+{
+    // Use the currentMenuIndex to get the selected device
+    Device *selectedDevice = &devices[currentMenuIndex]; // Get a pointer to the selected device
+
+    ESP_LOGI(TAG, "Selected device: %s", selectedDevice->name);
+    ESP_LOGI(TAG, "Device Type: %s", selectedDevice->type);
+    ESP_LOGI(TAG, "Device Pin: %d", selectedDevice->pin);
+    ESP_LOGI(TAG, "Device State: %s", selectedDevice->state ? "ON" : "OFF");
+
+    // Add your logic to control the device based on its type, pin, and state
+    if (strcmp(selectedDevice->type, "relay") == 0)
+    {
+        // Toggle the relay state
+        selectedDevice->state = !selectedDevice->state;
+        gpio_set_level(selectedDevice->pin, selectedDevice->state ? 1 : 0);
+    }
+    else if (strcmp(selectedDevice->type, "ir") == 0)
+    {
+        // Handle IR device action here
+        // Example: send IR command based on state
+    }
+
+    ESP_LOGI(TAG, "Updated device state: %s", selectedDevice->state ? "ON" : "OFF");
+}
 
 void init_gpio()
 {
@@ -263,6 +310,7 @@ void data_processing_task(void *pvParameters)
         if (FETCHNEWDEVICESDATA)
         {
             FETCHNEWDEVICESDATA = 0;
+            free_devices_array();
             ESP_LOGI(TAG, "New Devices data"); // No new data enters here
             lcd_put_cur(0, 0);                 // Move cursor to the beginning of the first line
             lcd_send_string("ACTUALIZANDO");

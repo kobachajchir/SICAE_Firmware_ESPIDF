@@ -8,9 +8,9 @@
 #include "json/cJSON/cJSON.h"
 #include "json/cJSON/cJSON_Utils.h"
 #include "lcd_utils.h" 
-#include "globals.h"
 #include "nvs_utils.h"
 #include "devicesRelay_utils.h"
+#include "globals.h"
 
 #define FILE_PATH_MAX (256)
 #define FULL_PATH_MAX (FILE_PATH_MAX + 8) // Adding 8 to accommodate "/spiffs/"
@@ -163,31 +163,56 @@ case HTTP_EVENT_ON_FINISH:
                 break;
             }
 
+            // Get the number of devices
+            int array_size = cJSON_GetArraySize(json_array);
+            deviceCount = array_size;
+
+            // Allocate memory for the devices array
+            devices = (Device *)malloc(deviceCount * sizeof(Device));
+            if (devices == NULL) {
+                ESP_LOGE(TAG, "Failed to allocate memory for devices array");
+                cJSON_Delete(json_array);
+                break;
+            }
+
+            // Populate the devices array
             cJSON *device = NULL;
+            int index = 0;
             cJSON_ArrayForEach(device, json_array) {
                 cJSON *deviceType = cJSON_GetObjectItem(device, "deviceType");
                 cJSON *status = cJSON_GetObjectItem(device, "status");
                 cJSON *deviceId = cJSON_GetObjectItem(device, "id");
+                cJSON *deviceName = cJSON_GetObjectItem(device, "name");
 
-                if (deviceType && status && cJSON_IsString(deviceType) && cJSON_IsBool(status) && cJSON_IsNumber(deviceId)) {
-                    if (strcmp(deviceType->valuestring, "relay") == 0) {
-                        int device_number = deviceId->valueint;
-                        uint8_t gpio_pin;
-                        esp_err_t err = read_device_pin_from_nvs(device_number, &gpio_pin);
-                        if (err == ESP_OK) {
-                            ESP_LOGI(TAG, "Device %d (relay) is mapped to GPIO %d", device_number, gpio_pin);
-                            bool relay_status = cJSON_IsTrue(status);
-                            setPower(relay_status, gpio_pin);
-                            ESP_LOGI(TAG, "Updated GPIO %d to %s based on Firebase status", gpio_pin, relay_status ? "ON" : "OFF");
-                        } else {
-                            ESP_LOGE(TAG, "Failed to read GPIO pin for device %d", device_number);
-                        }
+                if (deviceType && status && cJSON_IsString(deviceType) && cJSON_IsBool(status) && cJSON_IsNumber(deviceId) && cJSON_IsString(deviceName)) {
+                    devices[index].id = deviceId->valueint;
+                    devices[index].name = strdup(deviceName->valuestring); // Copy the name string
+                    devices[index].type = strdup(deviceType->valuestring); // Copy the type string
+                    devices[index].state = cJSON_IsTrue(status);
+
+                    // Fetch the GPIO pin number for this device from NVS
+                    esp_err_t err = read_device_pin_from_nvs(devices[index].id, &devices[index].pin);
+                    if (err != ESP_OK) {
+                        ESP_LOGE(TAG, "Failed to read GPIO pin for device %d", devices[index].id);
+                        devices[index].pin = -1; // Set an invalid pin if not found
                     }
+
+                    ESP_LOGI(TAG, "Device %d (%s) is mapped to GPIO %d with state %s",
+                            devices[index].id, devices[index].type, devices[index].pin,
+                            devices[index].state ? "ON" : "OFF");
+
+                    // Apply the initial state to the GPIO pin
+                    if (strcmp(devices[index].type, "relay") == 0) {
+                        setPower(devices[index].state, devices[index].pin);
+                    }
+
+                    index++;
                 } else {
                     ESP_LOGE(TAG, "Invalid device data in JSON");
                 }
             }
 
+            // Clean up
             cJSON_Delete(json_array);
         }else if (strstr(url, "/devices/") && strstr(url, ".json")) {
             cJSON *json = cJSON_Parse(response_data);

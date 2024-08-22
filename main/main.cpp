@@ -385,9 +385,8 @@ void data_processing_task(void *pvParameters)
         {
             SETCONSUMEDCURRENT = 0;
             vTaskSuspend(aCSReadHandler);
-            firebase_update_device_current(deviceSelection, device_currents[deviceSelection]);
+            firebase_update_device_current(currentDeviceIndex, device_currents[currentDeviceIndex]);
             vTaskResume(aCSReadHandler);
-            POSTNONEWDATA = 1;
         }
         if (SETNEWDEVICEDATA)
         {
@@ -513,34 +512,45 @@ void read_acs712_task(void *param)
 
     while (true)
     {
-        gpio_num_t pin = device_pins[deviceSelection]; // Replace with your actual GPIO pin number
-        int gpio_level = get_gpio_output_gpio_level(pin);
-        ESP_LOGI(TAG, "GPIO level for device 0: %d", gpio_level);
-
-        if (gpio_level != 0)
-        {                                    // Check if the relay is off
-            vTaskDelay(pdMS_TO_TICKS(1000)); // Delay for 1000 ms before checking again
-            continue;
-        }
-
-        float total_current = 0;
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < deviceCount; i++) // Iterate over all devices
         {
-            // Perform current measurement
-            int adc_reading = adc1_get_raw(ADC1_CHANNEL_0);
-            float voltage = ((float)adc_reading / ADC_MAX) * Vref;
-            float current = (voltage - zeroOffset) / sensitivity; // Convert voltage to current
-            total_current += current;
+            if (strcmp(devices[i].type, "relay") != 0)
+            {
+                continue; // Skip non-relay devices
+            }
 
-            // Short delay between readings
-            vTaskDelay(pdMS_TO_TICKS(1)); // 1 ms delay between readings
+            gpio_num_t pin = devices[i].pin;
+            int gpio_level = get_gpio_output_gpio_level(pin);
+            ESP_LOGI(TAG, "GPIO level for device %d: %d", i, gpio_level);
+
+            if (gpio_level != 0)
+            {                                    // Check if the relay is off
+                vTaskDelay(pdMS_TO_TICKS(1000)); // Delay for 1000 ms before checking again
+                continue;
+            }
+
+            float total_current = 0;
+            for (int j = 0; j < 1000; j++)
+            {
+                // Perform current measurement
+                int adc_reading = adc1_get_raw(ADC1_CHANNEL_0);
+                float voltage = ((float)adc_reading / ADC_MAX) * Vref;
+                float current = (voltage - zeroOffset) / sensitivity; // Convert voltage to current
+                total_current += current;
+
+                // Short delay between readings
+                vTaskDelay(pdMS_TO_TICKS(1)); // 1 ms delay between readings
+            }
+
+            // Calculate the average current
+            device_currents[i] = total_current / 1000;
+            ESP_LOGI(TAG, "Average measured current for device %d: %.2f A", i, device_currents[i]);
+
+            currentDeviceIndex = i;
+            // Set the flag to update the current consumed
+            SETCONSUMEDCURRENT = 1;
         }
 
-        // Calculate the average current
-        device_currents[deviceSelection] = total_current / 1000;
-        ESP_LOGI(TAG, "Average measured current: %.2f A", device_currents[deviceSelection]);
-        total_current = 0;
-        SETCONSUMEDCURRENT = 1;
         // Delay for 1000 ms before starting the next set of readings
         vTaskDelay(pdMS_TO_TICKS(1000));
     }

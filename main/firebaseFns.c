@@ -90,10 +90,6 @@ void clear_new_data_section(void){
 
         if (esp_http_client_get_status_code(client) == 200) {
             POSTNONEWDATA = 0;
-            lcd_put_cur(0, 0); // Move cursor to the beginning of the first line
-            lcd_send_string("NUBE ACTUALIZADA");
-            lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
-            lcd_send_string("");
             FETCHNEWINFODATA = 0;
             FETCHNEWDEVICESDATA = 0;
             FETCHNEWDATETIMEDATA = 0;
@@ -227,7 +223,6 @@ void firebase_update_dispositivo_device_status(int device_number, bool status) {
     }
 
     // Format the URL to point directly to the device's status field, ensuring it ends with .json
-    char url[256];
     snprintf(url, sizeof(url), "%sdevices/%d.json", disp_url, device_number);
 
     // Log the URL and payload for debugging

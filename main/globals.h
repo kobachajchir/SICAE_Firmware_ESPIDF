@@ -79,6 +79,7 @@ extern const uint8_t clientcert_pem_end[] asm("_binary_clientcert_pem_end");
 #define SETNEWDATETIME btnFlag3.bits.bit4       // Flag for setting new datetime
 #define FETCHNEWDEVICEDATA btnFlag3.bits.bit5
 #define SETCONSUMEDCURRENT btnFlag3.bits.bit6
+#define POPULATEDEVICES btnFlag3.bits.bit7
 
 /* i2c Configuration */
 #define I2C_MASTER_SCL_IO GPIO_NUM_22 /*!< GPIO number for I2C master clock */
@@ -115,6 +116,12 @@ extern EventGroupHandle_t s_wifi_event_group;
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
+
+extern TaskHandle_t buttonTaskHandler;
+extern TaskHandle_t dataFetchHandler;
+extern TaskHandle_t dataProcessHandler;
+extern TaskHandle_t aliveHandler;
+extern TaskHandle_t aCSReadHandler;
 
 extern MenuSystem menuSystem;
 extern SubMenu mainMenu;

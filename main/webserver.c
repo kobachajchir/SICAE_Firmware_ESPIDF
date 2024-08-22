@@ -85,6 +85,8 @@ case HTTP_EVENT_ON_FINISH:
         // Determine the response source based on the URL
         if (strstr(url, "/newData.json")) {
             // Process the data as "newData.json"
+            /*vTaskSuspend(aliveHandler);
+            vTaskSuspend(aCSReadHandler);*/
             cJSON *json = cJSON_Parse(response_data);
             if (json) {
                 cJSON *status = cJSON_GetObjectItem(json, "status");
@@ -151,6 +153,8 @@ case HTTP_EVENT_ON_FINISH:
 
         } else if (strstr(url, "/devices.json")) {
             // Process the data as "devices.json"
+            /*vTaskSuspend(aliveHandler);
+            vTaskSuspend(aCSReadHandler);*/
             cJSON *json_array = cJSON_Parse(response_data);
             if (json_array == NULL) {
                 ESP_LOGE(TAG, "Failed to parse JSON response");
@@ -214,6 +218,7 @@ case HTTP_EVENT_ON_FINISH:
 
             // Clean up
             cJSON_Delete(json_array);
+            POPULATEDEVICES = 1;
         }else if (strstr(url, "/devices/") && strstr(url, ".json")) {
             cJSON *json = cJSON_Parse(response_data);
             if(json){

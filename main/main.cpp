@@ -60,11 +60,7 @@ struct tm timeinfo = {0};
 float zeroOffset = 0.0;
 int deviceSelection = 0;
 
-// Define submenu 1 items
-MenuItem submenu1Items[] = {
-    {"Option 1", nullptr},
-    {"Option 2", nullptr},
-    {"VOLVER", volver}};
+MenuItem *submenu1Items = NULL;
 
 // Define submenu 2 items
 MenuItem submenu2Items[] = {
@@ -79,13 +75,13 @@ MenuItem submenu3Items[] = {
     {"VOLVER", volver}};
 
 // Define the submenus and main menu
-SubMenu submenu1 = {"SubMenu 1", submenu1Items, 3, &mainMenu};
+SubMenu submenu1 = {"Dispositivos", nullptr, 0, NULL}; // Initialize without items initially
 SubMenu submenu2 = {"SubMenu 2", submenu2Items, 3, &mainMenu};
 SubMenu submenu3 = {"SubMenu 3", submenu3Items, 3, &mainMenu};
 
 // Define main menu items
 MenuItem mainMenuItems[] = {
-    {"SubMenu 1", submenu1Fn},
+    {"Dispositivos", submenu1Fn},
     {"SubMenu 2", submenu2Fn},
     {"SubMenu 3", submenu3Fn},
     {"VOLVER", volver}};
@@ -116,6 +112,8 @@ extern "C"
     void navigate_menu();
     void deviceAction();
     void free_devices_array();
+    void populate_device_menu();
+    void firebase_update_task(void *param);
 }
 
 static const char *TAG = "main";
@@ -145,6 +143,7 @@ char rssi_str[10];
 
 Device *devices = NULL;
 int deviceCount = 0;
+int currentDeviceIndex = 0;
 
 void free_devices_array()
 {
@@ -161,10 +160,71 @@ void free_devices_array()
     }
 }
 
-void deviceAction(int currentMenuIndex)
+void populate_device_menu()
 {
-    // Use the currentMenuIndex to get the selected device
-    Device *selectedDevice = &devices[currentMenuIndex]; // Get a pointer to the selected device
+    ESP_LOGI("Menu", "Starting to populate device menu...");
+
+    int maxItems = deviceCount + 1; // Add one for the "VOLVER" item
+
+    ESP_LOGI("Menu", "Device count: %d", deviceCount);
+    ESP_LOGI("Menu", "Max items (including VOLVER): %d", maxItems);
+
+    // Free previously allocated memory for submenu1Items if needed
+    if (submenu1Items != NULL)
+    {
+        ESP_LOGI("Menu", "Freeing previously allocated memory for submenu1Items");
+        free(submenu1Items);
+    }
+
+    // Allocate memory for submenu1Items based on device count
+    submenu1Items = (MenuItem *)malloc(sizeof(MenuItem) * maxItems);
+    if (submenu1Items == NULL)
+    {
+        ESP_LOGE("Menu", "Failed to allocate memory for submenu1Items");
+        return;
+    }
+
+    ESP_LOGI("Menu", "Allocated memory for %d menu items", maxItems);
+
+    // Populate the submenu with devices
+    for (int i = 0; i < deviceCount; i++)
+    {
+        submenu1Items[i].name = devices[i].name;
+        submenu1Items[i].action = deviceAction; // Set the action to a generic function
+    }
+
+    // Add the "VOLVER" option
+    submenu1Items[deviceCount].name = "VOLVER";
+    submenu1Items[deviceCount].action = (MenuFunction)volver;
+
+    // Update the submenu structure
+    submenu1.items = submenu1Items;
+    submenu1.itemCount = maxItems;
+
+    ESP_LOGI("Menu", "Updated submenu1 with %d items", maxItems);
+
+    // Optionally, refresh the menu display if needed
+    if (menuSystem.currentMenu == &submenu1)
+    {
+        ESP_LOGI("Menu", "Displaying submenu1");
+        displayMenu(&menuSystem, 0);
+    }
+
+    ESP_LOGI("Menu", "Finished populating device menu");
+}
+
+void firebase_update_task(void *param)
+{
+    // Perform the Firebase update here
+    Device *selectedDevice = &devices[currentDeviceIndex]; // Get a pointer to the selected device
+    firebase_update_dispositivo_device_status(currentDeviceIndex, !selectedDevice->state);
+    vTaskDelete(NULL); // Delete the task when done
+}
+
+void deviceAction()
+{
+    // Use the global variable currentDeviceIndex to get the selected device
+    Device *selectedDevice = &devices[currentDeviceIndex]; // Get a pointer to the selected device
 
     ESP_LOGI(TAG, "Selected device: %s", selectedDevice->name);
     ESP_LOGI(TAG, "Device Type: %s", selectedDevice->type);
@@ -177,6 +237,7 @@ void deviceAction(int currentMenuIndex)
         // Toggle the relay state
         selectedDevice->state = !selectedDevice->state;
         gpio_set_level(selectedDevice->pin, selectedDevice->state ? 1 : 0);
+        xTaskCreate(firebase_update_task, "Firebase Update Task", 4096, NULL, 5, NULL);
     }
     else if (strcmp(selectedDevice->type, "ir") == 0)
     {
@@ -392,8 +453,13 @@ void data_processing_task(void *pvParameters)
             ESP_LOGI(TAG, "Clear new data"); // No new data enters here
             clear_new_data_section();
             vTaskResume(dataFetchHandler);
-            vTaskResume(aliveHandler);
-            printCurrentIP();
+            /*vTaskResume(aCSReadHandler);
+            vTaskResume(aliveHandler);*/
+            if (POPULATEDEVICES)
+            {
+                POPULATEDEVICES = 0;
+                populate_device_menu();
+            }
         }
 
         // Sleep for a short time to yield control to other tasks
@@ -646,16 +712,15 @@ extern "C" void app_main(void)
     {
         INITIALIZING = 0;
         firebase_read_device_status();
+        submenu1.parent = &mainMenu;
+        submenu2.parent = &mainMenu;
+        submenu3.parent = &mainMenu;
+        // Initialize the menu system
+        initMenuSystem(&menuSystem);
+        firebase_get_dispositivo_devices();
         xTaskCreate(button_task, "button_task", 2048, NULL, 10, &buttonTaskHandler);
         ESP_LOGI(TAG, "Buttons tasks created");
         printCurrentIP();
         xTaskCreate(read_acs712_task, "read_acs712_task", 2048, NULL, 5, &aCSReadHandler);
-        submenu1.parent = &mainMenu;
-        submenu2.parent = &mainMenu;
-        submenu3.parent = &mainMenu;
-
-        // Initialize the menu system
-        initMenuSystem(&menuSystem);
-        displayMenu(&menuSystem, 0);
     }
 }

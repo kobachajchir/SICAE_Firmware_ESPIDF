@@ -23,7 +23,7 @@
 #include "menuTypes.h"
 #include "deviceType.h"
 
-#define FIRMWARE "0.0.4"
+#define FIRMWARE "1.0.1"
 
 /* Pin declarations */
 #define PIN_BTN_ENTER 39

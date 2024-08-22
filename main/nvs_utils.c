@@ -285,7 +285,7 @@ void initialize_nvs_with_default_data(char* device_id) {
                 ESP_LOGE(TAG, "Error (%s) saving default SSID!", esp_err_to_name(err));
             }
 
-            err = nvs_set_str(my_handle, "wifi_ssid", "Koba");
+            err = nvs_set_str(my_handle, "wifi_ssid", "Koba S21");
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "Error (%s) saving default SSID!", esp_err_to_name(err));
             }

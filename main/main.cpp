@@ -378,7 +378,7 @@ void data_processing_task(void *pvParameters)
             lcd_put_cur(1, 0); // Move cursor to the beginning of the first line
             lcd_send_string("OBTENIENDO DISP");
             vTaskSuspend(dataFetchHandler);
-            vTaskSuspend(aliveHandler);
+            // vTaskSuspend(aliveHandler);
             firebase_get_dispositivo_devices();
         }
         if (SETCONSUMEDCURRENT)
